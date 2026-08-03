@@ -1,0 +1,22 @@
+node_modules/
+dist/
+dist-node/
+build/
+.turbo/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+
+# Source files stay local — each dev brings their own.
+fontes/*.docx
+fontes/*.xlsx
+!fontes/README.md
+
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+*.log
