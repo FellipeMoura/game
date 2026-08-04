@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "../../shared/openapi/zod";
 import { requireApiKey } from "../../shared/middleware/apiKey";
+import { writeLimiter } from "../../shared/middleware/rateLimit";
 import { validateBody, validateParams, validateQuery } from "../../shared/middleware/validate";
 import { registry } from "../../shared/openapi/registry";
 import { rejectForbiddenTerms } from "../../shared/services/terminology";
@@ -78,6 +79,7 @@ registry.registerPath({
 });
 designDocumentsRouter.post(
   "/",
+  writeLimiter,
   requireApiKey,
   rejectForbiddenTerms,
   validateBody(CreateDesignDocumentBodySchema),
@@ -101,6 +103,7 @@ registry.registerPath({
 });
 designDocumentsRouter.patch(
   "/:slug",
+  writeLimiter,
   requireApiKey,
   rejectForbiddenTerms,
   validateParams(SlugParamsSchema),

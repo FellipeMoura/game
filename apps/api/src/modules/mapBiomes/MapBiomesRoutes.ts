@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "../../shared/openapi/zod";
 import { requireApiKey } from "../../shared/middleware/apiKey";
+import { writeLimiter } from "../../shared/middleware/rateLimit";
 import { validateBody, validateQuery } from "../../shared/middleware/validate";
 import { registry } from "../../shared/openapi/registry";
 import { rejectForbiddenTerms } from "../../shared/services/terminology";
@@ -44,6 +45,7 @@ registry.registerPath({
 });
 mapBiomesRouter.post(
   "/batch",
+  writeLimiter,
   requireApiKey,
   rejectForbiddenTerms,
   validateBody(BatchUpsertMapBiomesBodySchema),
@@ -65,6 +67,7 @@ registry.registerPath({
 });
 mapBiomesRouter.post(
   "/",
+  writeLimiter,
   requireApiKey,
   rejectForbiddenTerms,
   validateBody(UpsertMapBiomeBodySchema),

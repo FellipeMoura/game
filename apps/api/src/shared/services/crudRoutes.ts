@@ -3,6 +3,7 @@ import type { RequestHandler } from "express";
 import { z } from "../openapi/zod";
 import type { ZodTypeAny } from "zod";
 import { requireApiKey } from "../middleware/apiKey";
+import { writeLimiter } from "../middleware/rateLimit";
 import { validateBody, validateParams, validateQuery } from "../middleware/validate";
 import { registry } from "../openapi/registry";
 import { rejectForbiddenTerms } from "./terminology";
@@ -76,6 +77,7 @@ export function registerCrudRoutes(opts: CrudRoutesOptions): Router {
   });
   router.post(
     "/batch",
+    writeLimiter,
     requireApiKey,
     rejectForbiddenTerms,
     validateBody(schemas.batchCreateBody),
@@ -113,6 +115,7 @@ export function registerCrudRoutes(opts: CrudRoutesOptions): Router {
   });
   router.post(
     "/",
+    writeLimiter,
     requireApiKey,
     rejectForbiddenTerms,
     validateBody(schemas.createBody),
@@ -138,6 +141,7 @@ export function registerCrudRoutes(opts: CrudRoutesOptions): Router {
   });
   router.patch(
     "/:code",
+    writeLimiter,
     requireApiKey,
     rejectForbiddenTerms,
     validateParams(schemas.codeParams),

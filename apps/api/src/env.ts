@@ -15,4 +15,9 @@ export const env = {
   apiKey: required("API_KEY"),
   port: Number.parseInt(optional("API_PORT", "5101"), 10),
   nodeEnv: optional("NODE_ENV", "development"),
+  // Comma-separated origins. Empty in dev = permissive (origin: true).
+  // Empty in prod = blocks all cross-origin (origin: false).
+  corsOrigin: optional("CORS_ORIGIN", ""),
 };
+
+export const isProd = env.nodeEnv === "production";

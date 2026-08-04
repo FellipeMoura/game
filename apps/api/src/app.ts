@@ -4,8 +4,10 @@
 import "express-async-errors";
 import cors from "cors";
 import express from "express";
+import { env, isProd } from "./env.js";
 import { handleError } from "./shared/middleware/handleError.js";
 import { buildOpenApiDocument } from "./shared/openapi/registry.js";
+import { checkHealth } from "./shared/services/health.js";
 import { abilitiesRouter } from "./modules/abilities/AbilitiesRoutes.js";
 import { awakeningsRouter } from "./modules/awakenings/AwakeningsRoutes.js";
 import { biomesRouter } from "./modules/biomes/BiomesRoutes.js";
@@ -23,11 +25,33 @@ import { mapBiomesRouter } from "./modules/mapBiomes/MapBiomesRoutes.js";
 import { missionsRouter } from "./modules/missions/MissionsRoutes.js";
 import { npcsRouter } from "./modules/npcs/NpcsRoutes.js";
 
+/**
+ * Resolve the CORS origin at boot. In dev, an empty CORS_ORIGIN means
+ * "allow anything" (convenient for tsx/vite). In prod, an empty
+ * CORS_ORIGIN blocks all cross-origin traffic — deliberate: forgetting to
+ * set the env should fail closed, not open.
+ */
+function resolveCorsOrigin(): boolean | string[] {
+  if (env.corsOrigin) {
+    return env.corsOrigin.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+  return isProd ? false : true;
+}
+
 export function createApp() {
   const app = express();
   app.disable("etag");
-  app.use(cors({ origin: true, credentials: true }));
+  // Trust the first proxy so express-rate-limit sees the real client IP
+  // (Nginx sets X-Forwarded-For in front of us in prod).
+  if (isProd) app.set("trust proxy", 1);
+  app.use(cors({ origin: resolveCorsOrigin(), credentials: true }));
   app.use(express.json({ limit: "1mb" }));
+
+  // Liveness + DB probe. Public, no auth — deploy.sh polls this after reload.
+  app.get("/health", async (_req, res) => {
+    const h = await checkHealth();
+    res.status(h.ok ? 200 : 503).json(h);
+  });
 
   app.get("/", (_req, res) => {
     res.json({ app: "bestiary", docs: "/openapi.json", api: "/api/v1" });
