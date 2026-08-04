@@ -21,6 +21,7 @@
     "openapi:generate": "pnpm --filter @bestiary/web run openapi:generate"
   },
   "devDependencies": {
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
 }
