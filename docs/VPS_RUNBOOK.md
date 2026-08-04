@@ -78,10 +78,12 @@ echo "container: $PG_CONTAINER, superuser: $PG_SUPERUSER"
 # 2. Ler a senha do .env (não vaza para disk em nenhum ponto)
 PG_PASSWORD=$(grep '^DATABASE_URL=' .env | sed 's|.*://bestiary_app:\([^@]*\)@.*|\1|')
 
-# 3. Substituir a placeholder no SQL e mandar para dentro do container
-#    como o superuser real (não 'postgres')
+# 3. Substituir a placeholder no SQL e mandar para dentro do container.
+#    -d postgres é obrigatório: o psql sem -d tenta conectar num DB de mesmo
+#    nome do user (`quartzo`), que NÃO existe (o container só tem quartzo_prod
+#    + os DBs de sistema). `postgres` é o maintenance DB e sempre existe.
 sed "s|CHANGE_ME_BEFORE_RUNNING|$PG_PASSWORD|" infra/postgres/init-bestiary.sql \
-  | docker exec -i "$PG_CONTAINER" psql -U "$PG_SUPERUSER"
+  | docker exec -i "$PG_CONTAINER" psql -U "$PG_SUPERUSER" -d postgres
 ```
 
 Sanity check — o role **não** pode acessar outros DBs da instância compartilhada:

@@ -13,7 +13,12 @@
 --     | grep '^POSTGRES_USER=' | cut -d= -f2)
 --   PG_PASSWORD=$(grep '^DATABASE_URL=' .env | sed 's|.*://bestiary_app:\([^@]*\)@.*|\1|')
 --   sed "s|CHANGE_ME_BEFORE_RUNNING|$PG_PASSWORD|" infra/postgres/init-bestiary.sql \
---     | docker exec -i "$PG_CONTAINER" psql -U "$PG_SUPERUSER"
+--     | docker exec -i "$PG_CONTAINER" psql -U "$PG_SUPERUSER" -d postgres
+--
+-- The `-d postgres` matters: without it, psql tries to connect to a DB
+-- named after the user (e.g. "quartzo"), which doesn't exist on this
+-- cluster (only quartzo_prod does). `postgres` is the maintenance DB
+-- and is always present.
 --
 -- If a future VPS has Postgres native to the OS:
 --   sudo -u postgres psql -f infra/postgres/init-bestiary.sql
