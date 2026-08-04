@@ -62,18 +62,26 @@ chmod 600 .env  # só o dono lê
 
 Na sysnode o Postgres roda em Docker (mesmo container do quartzo, porta 5434 exposta no host). O host **não** tem user `postgres` nem `psql` — todo comando administrativo passa por `docker exec`.
 
-```bash
-# Descobrir o container Postgres (nome varia por VPS)
-PG_CONTAINER=$(docker ps --format '{{.Names}}\t{{.Image}}' | grep -i postgres | head -1 | awk '{print $1}')
-echo "container postgres: $PG_CONTAINER"
-# Se vier vazio: docker ps sem filtro, ver o que está rodando
+**Cuidado:** o container do quartzo **não** foi criado com o superuser default `postgres` — foi criado com `POSTGRES_USER=quartzo`. Nunca presuma o superuser; descubra via `docker inspect`.
 
-# Ler a senha do .env (não imprime a senha em disco em nenhum ponto)
+```bash
+# 1. Descobrir o container e o superuser real
+PG_CONTAINER=$(docker ps --format '{{.Names}}' | grep -i postgres | head -1)
+PG_SUPERUSER=$(docker inspect "$PG_CONTAINER" \
+  --format '{{range .Config.Env}}{{println .}}{{end}}' \
+  | grep '^POSTGRES_USER=' | cut -d= -f2)
+echo "container: $PG_CONTAINER, superuser: $PG_SUPERUSER"
+# Se PG_SUPERUSER vier vazio: chute 'quartzo' e teste com
+#   docker exec "$PG_CONTAINER" psql -U quartzo -c '\du'
+# ou olhe o docker-compose do quartzo em /srv/quartzo/.
+
+# 2. Ler a senha do .env (não vaza para disk em nenhum ponto)
 PG_PASSWORD=$(grep '^DATABASE_URL=' .env | sed 's|.*://bestiary_app:\([^@]*\)@.*|\1|')
 
-# Substituir a placeholder no SQL e mandar para dentro do container
+# 3. Substituir a placeholder no SQL e mandar para dentro do container
+#    como o superuser real (não 'postgres')
 sed "s|CHANGE_ME_BEFORE_RUNNING|$PG_PASSWORD|" infra/postgres/init-bestiary.sql \
-  | docker exec -i "$PG_CONTAINER" psql -U postgres
+  | docker exec -i "$PG_CONTAINER" psql -U "$PG_SUPERUSER"
 ```
 
 Sanity check — o role **não** pode acessar outros DBs da instância compartilhada:

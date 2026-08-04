@@ -2,13 +2,18 @@
 -- instance that already serves quartzo (port 5434).
 --
 -- On the sysnode VPS the Postgres runs inside a Docker container and the
--- host has neither the `postgres` OS user nor a `psql` client. Pipe this
--- file into the container via `docker exec`:
+-- host has neither the `postgres` OS user nor a `psql` client. Also, the
+-- container's superuser is NOT `postgres` — it was created with
+-- POSTGRES_USER=quartzo, so `-U postgres` fails with "role does not exist".
+-- Discover the real superuser via `docker inspect` first:
 --
 --   PG_CONTAINER=$(docker ps --format '{{.Names}}' | grep -i postgres | head -1)
+--   PG_SUPERUSER=$(docker inspect "$PG_CONTAINER" \
+--     --format '{{range .Config.Env}}{{println .}}{{end}}' \
+--     | grep '^POSTGRES_USER=' | cut -d= -f2)
 --   PG_PASSWORD=$(grep '^DATABASE_URL=' .env | sed 's|.*://bestiary_app:\([^@]*\)@.*|\1|')
 --   sed "s|CHANGE_ME_BEFORE_RUNNING|$PG_PASSWORD|" infra/postgres/init-bestiary.sql \
---     | docker exec -i "$PG_CONTAINER" psql -U postgres
+--     | docker exec -i "$PG_CONTAINER" psql -U "$PG_SUPERUSER"
 --
 -- If a future VPS has Postgres native to the OS:
 --   sudo -u postgres psql -f infra/postgres/init-bestiary.sql
