@@ -16,7 +16,7 @@ registry.registerPath({
   tags: ["meta"],
   summary: "Compact project snapshot in markdown",
   description:
-    "First read of an agent's session. Returns a token-cheap markdown summary: official terminology, elements, classes, creature counts per era, and the five most recent changelog entries. Always `text/markdown`.",
+    "First read of an agent's session. Returns a token-cheap markdown briefing: write/read rules, terminology, domain invariants, reference codes (elements + classes), creature counts per era, a canonical POST example, the full endpoint index (auto-derived from the registry), and the five most recent changelog entries. Always `text/markdown`.",
   responses: {
     200: {
       description: "Markdown snapshot",

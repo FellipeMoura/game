@@ -1,6 +1,32 @@
 import { asc, count, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@bestiary/db";
+import { registry } from "../../shared/openapi/registry";
 import { OFFICIAL_TERM } from "../../shared/services/terminology";
+
+interface RouteDefinition {
+  type: string;
+  route?: {
+    method: string;
+    path: string;
+    tags?: string[];
+    summary?: string;
+  };
+}
+
+function collectEndpoints(): Map<string, string[]> {
+  const byTag = new Map<string, string[]>();
+  const defs = (registry.definitions as unknown as RouteDefinition[]) ?? [];
+  for (const d of defs) {
+    if (d.type !== "route" || !d.route) continue;
+    const { method, path, tags, summary } = d.route;
+    const tag = tags?.[0] ?? "other";
+    const line = `${method.toUpperCase().padEnd(6)} ${path}${summary ? ` — ${summary}` : ""}`;
+    const bucket = byTag.get(tag) ?? [];
+    bucket.push(line);
+    byTag.set(tag, bucket);
+  }
+  return byTag;
+}
 
 /**
  * Builds a compact markdown summary of the project state. Meant to be the
@@ -41,9 +67,45 @@ export async function buildContextMarkdown(): Promise<string> {
   const lines: string[] = [];
   lines.push("# Bestiary — current context");
   lines.push("");
+  lines.push("_First read of every session. Token-cheap snapshot of the rules, reference codes, and endpoint index._");
+  lines.push("");
+
+  lines.push("## How to write");
+  lines.push("- Auth: header `X-API-Key: <key>` on every POST/PATCH. Reads are open.");
+  lines.push("- Every write body includes `reason` (3–500 chars) and `impact` (3–500 chars). Server writes the changelog and picks the version — never send a version.");
+  lines.push("- Version format is `0.NN`, monotonic, server-assigned.");
+  lines.push("- POST responds `{\"code\",\"version\"}`. PATCH responds `{\"code\",\"version\"}`. Batch responds `{\"codes\":[...],\"version\"}`. Never the full row.");
+  lines.push("- Foreign keys go by CODE (e.g. `classCode: \"CLS-001\"`), never by numeric id. Unknown code → 422 with the valid options.");
+  lines.push("- Junctions (`/drops`, `/map-biomes`, `/elemental-advantages`) POST is upsert. No PATCH/DELETE — re-POST to change values.");
+  lines.push("- 409 on: duplicate `code`, or POST /awakenings when the creature already has one.");
+  lines.push("- 422 on: schema validation, unknown `?fields`, forbidden terminology, unknown FK code. Error messages name the field and list valid values.");
+  lines.push("");
+
+  lines.push("## How to read");
+  lines.push("- Every list supports `?fields=code,name` — use it. Full rows waste tokens.");
+  lines.push("- Every list supports `?limit` (default 100, max 500) and `?offset`.");
+  lines.push("- Common filters where applicable: `?era`, `?classCode`, `?elementCode`, `?mapCode`, `?biomeCode`.");
+  lines.push("- Full field schemas and per-endpoint request/response shapes: `GET /openapi.json`.");
+  lines.push("- Long-form design docs: `GET /documents/{slug}` with `Accept: text/markdown` returns plain text (no JSON envelope).");
+  lines.push("");
+
+  lines.push("## Code prefixes");
+  lines.push("_Every resource has a stable string code. Prefixes are preserved from the Portuguese source material — they are values, not code._");
+  lines.push("- `CRT-*` creature · `DSP-*` awakening (**D**esperta**r**) · `ELE-*` element · `CLS-*` creature class");
+  lines.push("- `BIO-*` biome · `HAB-*` ability (**hab**ilidade) · `ITM-*` item · `NPC-*` npc · `MIS-*` mission · `DRP-*` drop");
+  lines.push("- Maps use era-based codes: `PZ-01` (paleozoic), `MZ-01` (mesozoic), `CZ-01` (cenozoic).");
+  lines.push("");
+
   lines.push("## Terminology");
   lines.push(`- Official term: **${OFFICIAL_TERM}** (temporary transformation, returns to base form).`);
-  lines.push('- Deprecated (rejected with 422): **"Evolução"**, **"Forma Ancestral"**.');
+  lines.push('- Deprecated (rejected with 422 on any write field): **"Evolução"**, **"Forma Ancestral"**, **"Formas Ancestrais"**.');
+  lines.push("");
+
+  lines.push("## Domain invariants");
+  lines.push("- **Creature ↔ Awakening is 1:1.** `POST /awakenings` for a creature that already has one → 409.");
+  lines.push("- **Classes do NOT influence combat** (Changelog 0.01). No damage / multiplier / stat fields on `creature_classes`.");
+  lines.push("- **Elements DO influence combat.** See `GET /elemental-advantages` for `(attacker, defender, multiplier)`. Symmetry is not enforced.");
+  lines.push("- **3 eras × 3 maps × ~20 unique creatures.** Reappearances on later maps do not count toward the cap.");
   lines.push("");
 
   lines.push("## Elements");
@@ -64,8 +126,63 @@ export async function buildContextMarkdown(): Promise<string> {
   for (const era of eraOrder) lines.push(`- ${era}: ${eraCounts.get(era) ?? 0}`);
   lines.push("");
 
-  lines.push(`## Documents`);
+  lines.push("## Documents");
   lines.push(`- Total: ${docCounts[0]?.n ?? 0}`);
+  lines.push("");
+
+  lines.push("## Example — create a creature");
+  lines.push("```http");
+  lines.push("POST /api/v1/creatures");
+  lines.push("X-API-Key: <key>");
+  lines.push("Content-Type: application/json");
+  lines.push("");
+  lines.push(JSON.stringify({
+    code: "CRT-042",
+    originalName: "Trilobita Sombrio",
+    classCode: "CLS-001",
+    elementCode: "ELE-002",
+    mapCode: "PZ-01",
+    biomeCode: "BIO-001",
+    reason: "Preencher lacuna de nível 3 no PZ-01",
+    impact: "Habilita missão MIS-014 e drop DRP-021",
+  }, null, 2));
+  lines.push("");
+  lines.push('→ 201 {"code":"CRT-042","version":"0.42"}');
+  lines.push("```");
+  lines.push("");
+
+  lines.push("## Endpoints");
+  lines.push("_All paths are relative to `/api/v1`. Full request/response schemas at `GET /openapi.json`._");
+  const byTag = collectEndpoints();
+  const tagOrder = [
+    "meta",
+    "elements",
+    "elemental-advantages",
+    "creature-classes",
+    "creatures",
+    "awakenings",
+    "maps",
+    "biomes",
+    "map-biomes",
+    "abilities",
+    "items",
+    "npcs",
+    "missions",
+    "drops",
+    "documents",
+    "changelog",
+  ];
+  const seen = new Set<string>();
+  const emitTag = (tag: string) => {
+    const bucket = byTag.get(tag);
+    if (!bucket || bucket.length === 0) return;
+    lines.push("");
+    lines.push(`### ${tag}`);
+    for (const l of bucket) lines.push(`- \`${l}\``);
+    seen.add(tag);
+  };
+  for (const tag of tagOrder) emitTag(tag);
+  for (const tag of byTag.keys()) if (!seen.has(tag)) emitTag(tag);
   lines.push("");
 
   lines.push("## Last 5 changelog entries");
