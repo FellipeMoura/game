@@ -1,8 +1,17 @@
 -- One-off bootstrap of the bestiary database on the shared Postgres 16
 -- instance that already serves quartzo (port 5434).
 --
--- Run as the postgres superuser:
---   sudo -u postgres psql -f /srv/bestiary/current/infra/postgres/init-bestiary.sql
+-- On the sysnode VPS the Postgres runs inside a Docker container and the
+-- host has neither the `postgres` OS user nor a `psql` client. Pipe this
+-- file into the container via `docker exec`:
+--
+--   PG_CONTAINER=$(docker ps --format '{{.Names}}' | grep -i postgres | head -1)
+--   PG_PASSWORD=$(grep '^DATABASE_URL=' .env | sed 's|.*://bestiary_app:\([^@]*\)@.*|\1|')
+--   sed "s|CHANGE_ME_BEFORE_RUNNING|$PG_PASSWORD|" infra/postgres/init-bestiary.sql \
+--     | docker exec -i "$PG_CONTAINER" psql -U postgres
+--
+-- If a future VPS has Postgres native to the OS:
+--   sudo -u postgres psql -f infra/postgres/init-bestiary.sql
 --
 -- Idempotent: `IF NOT EXISTS` on role and database, `REVOKE`/`GRANT` are
 -- naturally re-runnable. Change the password *before* running (or edit

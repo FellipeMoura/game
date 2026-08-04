@@ -43,42 +43,55 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
-### 4. Criar DB e role no Postgres
+### 4. Criar o `.env` de produção na VPS
 
-Edite o SQL trocando a senha antes de aplicar:
-
-```bash
-# Substitua CHANGE_ME_BEFORE_RUNNING pela senha que você gerou:
-sed -i "s/CHANGE_ME_BEFORE_RUNNING/SUA_SENHA_AQUI/" infra/postgres/init-bestiary.sql
-
-sudo -u postgres psql -f /srv/bestiary/current/infra/postgres/init-bestiary.sql
-```
-
-Verificar que o role **não** consegue acessar `quartzo_prod`:
-
-```bash
-# Deve retornar "permission denied for database" — se conectar, algo está errado.
-PGPASSWORD='SUA_SENHA_AQUI' psql -h localhost -p 5434 -U bestiary_app -d quartzo_prod -c '\dt' 2>&1 | head -3
-```
-
-Depois **descartar** a versão editada do SQL (não commitar):
-
-```bash
-git checkout -- infra/postgres/init-bestiary.sql
-```
-
-### 5. Criar o `.env` de produção na VPS
+Fazer isso ANTES do próximo passo — o SQL de bootstrap lê a senha daqui.
 
 ```bash
 cp .env.production.example .env
 
-# Editar as três linhas com valores reais:
+# Editar as duas linhas com valores reais:
 #   DATABASE_URL — trocar REPLACE_WITH_STRONG_PASSWORD pela senha do passo 1
 #   API_KEY      — gerar novo: openssl rand -base64 32
 nano .env
 
 chmod 600 .env  # só o dono lê
 ```
+
+### 5. Criar DB e role no Postgres (via Docker)
+
+Na sysnode o Postgres roda em Docker (mesmo container do quartzo, porta 5434 exposta no host). O host **não** tem user `postgres` nem `psql` — todo comando administrativo passa por `docker exec`.
+
+```bash
+# Descobrir o container Postgres (nome varia por VPS)
+PG_CONTAINER=$(docker ps --format '{{.Names}}\t{{.Image}}' | grep -i postgres | head -1 | awk '{print $1}')
+echo "container postgres: $PG_CONTAINER"
+# Se vier vazio: docker ps sem filtro, ver o que está rodando
+
+# Ler a senha do .env (não imprime a senha em disco em nenhum ponto)
+PG_PASSWORD=$(grep '^DATABASE_URL=' .env | sed 's|.*://bestiary_app:\([^@]*\)@.*|\1|')
+
+# Substituir a placeholder no SQL e mandar para dentro do container
+sed "s|CHANGE_ME_BEFORE_RUNNING|$PG_PASSWORD|" infra/postgres/init-bestiary.sql \
+  | docker exec -i "$PG_CONTAINER" psql -U postgres
+```
+
+Sanity check — o role **não** pode acessar outros DBs da instância compartilhada:
+
+```bash
+docker exec -e PGPASSWORD="$PG_PASSWORD" "$PG_CONTAINER" \
+  psql -U bestiary_app -d quartzo_prod -c '\dt' 2>&1 | head -3
+# Esperado: "permission denied for database" (ou "database does not exist")
+# Se conectar e listar → falha crítica de isolamento, alertar imediatamente
+
+docker exec -e PGPASSWORD="$PG_PASSWORD" "$PG_CONTAINER" \
+  psql -U bestiary_app -d bestiary_prod -c '\dt' 2>&1 | head -3
+# Esperado: "Did not find any relations." (banco existe, vazio)
+
+unset PG_PASSWORD  # limpar do shell
+```
+
+O `infra/postgres/init-bestiary.sql` no repo continua com o placeholder — nada foi modificado no disk. Não precisa `git checkout`.
 
 ### 6. Rodar migrations e seed (primeira vez)
 
@@ -211,30 +224,50 @@ Se a migration reversível quebrar, precisa restaurar de backup — ver próxima
 
 ### Snapshot manual do banco (antes de deploy arriscado)
 
+`scripts/backup-pg.sh` chama `pg_dump` do host. Como o host **não** tem `pg_dump` (Postgres roda em Docker), use `docker exec` no lugar:
+
 ```bash
-cd /srv/bestiary/current
-PGPASSWORD='...' ./scripts/backup-pg.sh
+PG_CONTAINER=$(docker ps --format '{{.Names}}' | grep -i postgres | head -1)
+PG_PASSWORD=$(grep '^DATABASE_URL=' /srv/bestiary/current/.env | sed 's|.*://bestiary_app:\([^@]*\)@.*|\1|')
+STAMP=$(date -u +'%Y%m%dT%H%M%SZ')
+
+docker exec -e PGPASSWORD="$PG_PASSWORD" "$PG_CONTAINER" \
+  pg_dump -U bestiary_app -d bestiary_prod --no-owner --no-privileges \
+  | gzip -9 > /srv/bestiary/backups/bestiary-$STAMP.sql.gz
+
 ls -lh /srv/bestiary/backups/
+unset PG_PASSWORD
 ```
 
 ### Restaurar de backup
 
 ```bash
-# Descompactar
-gunzip -k /srv/bestiary/backups/bestiary-YYYYMMDD.sql.gz
+PG_CONTAINER=$(docker ps --format '{{.Names}}' | grep -i postgres | head -1)
+PG_PASSWORD=$(grep '^DATABASE_URL=' /srv/bestiary/current/.env | sed 's|.*://bestiary_app:\([^@]*\)@.*|\1|')
 
-# Restaurar numa cópia primeiro para validar (recomendado):
-sudo -u postgres psql -c "CREATE DATABASE bestiary_test OWNER bestiary_app;"
-PGPASSWORD='...' psql -h localhost -p 5434 -U bestiary_app -d bestiary_test \
-  -f /srv/bestiary/backups/bestiary-YYYYMMDD.sql
+# Validar em cópia primeiro (recomendado)
+docker exec -i "$PG_CONTAINER" psql -U postgres \
+  -c "CREATE DATABASE bestiary_test OWNER bestiary_app;"
+gunzip -c /srv/bestiary/backups/bestiary-YYYYMMDD.sql.gz \
+  | docker exec -i -e PGPASSWORD="$PG_PASSWORD" "$PG_CONTAINER" \
+    psql -U bestiary_app -d bestiary_test
 
-# Se validou, sobrescrever o real (com o api parado para evitar conexões):
+# Se validou, sobrescrever o real (com api parado para evitar conexões)
 pm2 stop bestiary-api
-sudo -u postgres psql -c "DROP DATABASE bestiary_prod;"
-sudo -u postgres psql -c "CREATE DATABASE bestiary_prod OWNER bestiary_app;"
-PGPASSWORD='...' psql -h localhost -p 5434 -U bestiary_app -d bestiary_prod \
-  -f /srv/bestiary/backups/bestiary-YYYYMMDD.sql
+docker exec -i "$PG_CONTAINER" psql -U postgres <<SQL
+DROP DATABASE bestiary_prod;
+CREATE DATABASE bestiary_prod OWNER bestiary_app;
+REVOKE ALL ON DATABASE bestiary_prod FROM PUBLIC;
+GRANT CONNECT ON DATABASE bestiary_prod TO bestiary_app;
+SQL
+gunzip -c /srv/bestiary/backups/bestiary-YYYYMMDD.sql.gz \
+  | docker exec -i -e PGPASSWORD="$PG_PASSWORD" "$PG_CONTAINER" \
+    psql -U bestiary_app -d bestiary_prod
 pm2 start bestiary-api
+
+# Limpeza
+docker exec -i "$PG_CONTAINER" psql -U postgres -c "DROP DATABASE bestiary_test;"
+unset PG_PASSWORD
 ```
 
 ### Rodar seed novamente

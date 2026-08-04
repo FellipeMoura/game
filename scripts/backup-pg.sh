@@ -11,6 +11,11 @@
 #   BACKUP_DIR=/tmp ./scripts/backup-pg.sh
 #
 # Requires: pg_dump on PATH, PGPASSWORD in env OR ~/.pgpass configured.
+#
+# On the sysnode VPS the host has no pg_dump because Postgres runs in
+# Docker — see docs/VPS_RUNBOOK.md → "Snapshot manual do banco" for the
+# `docker exec` variant. Keep this script for when a VPS has native
+# Postgres tools.
 
 set -euo pipefail
 
