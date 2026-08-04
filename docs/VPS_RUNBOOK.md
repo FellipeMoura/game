@@ -4,7 +4,7 @@ Comandos prontos para quem opera a VPS. Complementa `docs/DEPLOYMENT.md` (que é
 
 Assume:
 
-- Você faz SSH na VPS como user `deploy` (ou equivalente não-root com sudo).
+- Você faz SSH na VPS como um user com `sudo`, **não como root** (ex: `elora`, `deploy`, ou qualquer outro do dia-a-dia). Todos os comandos abaixo usam `$USER` — o próprio user logado, seja qual for.
 - Postgres 16 já roda em `localhost:5434` (compartilhado com quartzo).
 - Nginx e certbot já existem na VPS (herança do quartzo).
 
@@ -24,12 +24,17 @@ Guarde essa senha — vai em dois lugares: aqui e no `.env` da VPS (passo 5).
 ### 2. Clonar o repositório
 
 ```bash
-sudo mkdir -p /srv/bestiary/{current,logs,backups}
-sudo chown -R deploy:deploy /srv/bestiary
+sudo mkdir -p /srv/bestiary/{logs,backups}
+sudo chown -R $USER:$USER /srv/bestiary
 cd /srv/bestiary
 git clone https://github.com/FellipeMoura/game current
 cd current
 ```
+
+> **Nota:** `logs/` e `backups/` são criados com `mkdir -p`, mas `current/`
+> **não** — o `git clone` precisa criá-lo. Se você já rodou o mkdir com
+> `current` no meio das chaves e o clone falhou com "Permission denied":
+> `rm -rf /srv/bestiary/current` e refaça o clone.
 
 ### 3. Instalar dependências e buildar (para o Nginx ter o `apps/web/dist`)
 

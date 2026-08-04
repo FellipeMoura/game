@@ -154,11 +154,11 @@ Ações manuais, uma vez. Documentar em `docs/VPS_RUNBOOK.md`.
    PGPASSWORD='...' psql -h localhost -p 5434 -U bestiary_app -d quartzo_prod -c '\dt'
    # esperado: permission denied. Se conectar, GRANT foi mal feito.
    ```
-2. **Usuário de sistema** — não rodar deploy como root. Usar o mesmo user `deploy` do quartzo (ou criar `bestiary`). PM2 herda o user; se rodar como root, isso VIRA vulnerabilidade que afeta os vizinhos.
-3. **Diretórios em `/srv/bestiary/`:**
+2. **Usuário de sistema** — não rodar deploy como root. Usar o user do dia-a-dia da VPS (o mesmo `$USER` que faz SSH — na sysnode é `elora`). PM2 herda o user; se rodar como root, isso VIRA vulnerabilidade que afeta os vizinhos.
+3. **Diretórios em `/srv/bestiary/`** — atenção: só `logs` e `backups` são criados pelo mkdir; `current` fica para o `git clone` criar (senão o clone falha com "Permission denied" porque o diretório já existe vazio, dono root):
    ```bash
-   sudo mkdir -p /srv/bestiary/{current,logs,backups}
-   sudo chown -R deploy:deploy /srv/bestiary
+   sudo mkdir -p /srv/bestiary/{logs,backups}
+   sudo chown -R $USER:$USER /srv/bestiary
    ```
 4. **Clone inicial:**
    ```bash
@@ -191,7 +191,7 @@ Ações manuais, uma vez. Documentar em `docs/VPS_RUNBOOK.md`.
 **Critério de aceite:**
 - `psql -h localhost -p 5434 -U bestiary_app bestiary_prod -c '\dt'` conecta
 - `psql ... -U bestiary_app quartzo_prod` **falha** com permission denied
-- `ps aux | grep node` mostra o processo rodando como `deploy`, não `root`
+- `ps aux | grep node` mostra o processo rodando como `$USER` (não `root`)
 - Nginx serve `bestiary.sysnode.com.br` (502 esperado — PM2 ainda não subiu)
 
 ### Fase 4 — Primeiro deploy *(≈1h)*
