@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom";
+import { CreatureViewer } from "../components/CreatureViewer";
 import {
   useAwakeningByCreature,
   useCreature,
@@ -69,6 +70,11 @@ export function CreatureDetail() {
             <p className="mt-1 font-sans text-xs italic text-bone/60">{c.baseSpecies}</p>
           )}
         </div>
+      </section>
+
+      {/* 3D turntable — the only place camera rotation is allowed (see camera-e-perspectiva doc) */}
+      <section className="mt-12">
+        <CreatureViewer url={c.modelUrl} />
       </section>
 
       {/* comparator */}

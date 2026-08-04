@@ -21,6 +21,7 @@ export const creatures = pgTable("creatures", {
   role: text("role"),
   silhouetteNote: text("silhouette_note"),
   status: text("status"),
+  modelUrl: text("model_url"),
   ...timestamps,
 });
 

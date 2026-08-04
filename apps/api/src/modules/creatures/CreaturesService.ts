@@ -236,6 +236,7 @@ async function resolveCreatureRefs(
     role: body.role ?? null,
     silhouetteNote: body.silhouetteNote ?? null,
     status: body.status ?? null,
+    modelUrl: body.modelUrl ?? null,
   };
 }
 
@@ -250,6 +251,7 @@ async function resolvePartialCreatureRefs(
   if (patch.role !== undefined) out.role = patch.role ?? null;
   if (patch.silhouetteNote !== undefined) out.silhouetteNote = patch.silhouetteNote ?? null;
   if (patch.status !== undefined) out.status = patch.status ?? null;
+  if (patch.modelUrl !== undefined) out.modelUrl = patch.modelUrl ?? null;
   if (patch.classCode !== undefined) {
     out.classId = await resolveCodeInTx(tx, schema.creatureClasses, patch.classCode, "classCode");
   }

@@ -18,6 +18,10 @@ export const CreatureSchema = z
     role: z.string().nullable(),
     silhouetteNote: z.string().nullable(),
     status: z.string().nullable(),
+    modelUrl: z.string().nullable().openapi({
+      example: "/models/CRT-001.glb",
+      description: "Public path to the .glb model file. Null while the asset hasn't been approved.",
+    }),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
   })
@@ -35,6 +39,7 @@ export const CREATURE_FIELDS = [
   "role",
   "silhouetteNote",
   "status",
+  "modelUrl",
   "createdAt",
   "updatedAt",
 ] as const;
@@ -80,6 +85,10 @@ const creatureCoreSchema = z.object({
   role: z.string().max(64).nullish(),
   silhouetteNote: z.string().max(2000).nullish(),
   status: z.string().max(32).nullish(),
+  modelUrl: z.string().max(500).nullish().openapi({
+    example: "/models/CRT-042.glb",
+    description: "Public path to the .glb model file served by the web static.",
+  }),
 });
 
 export const CreateCreatureBodySchema = creatureCoreSchema

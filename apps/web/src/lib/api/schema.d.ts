@@ -3015,6 +3015,11 @@ export interface components {
             role: string | null;
             silhouetteNote: string | null;
             status: string | null;
+            /**
+             * @description Public path to the .glb model file. Null while the asset hasn't been approved.
+             * @example /models/CRT-001.glb
+             */
+            modelUrl: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
