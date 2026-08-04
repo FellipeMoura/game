@@ -12,6 +12,16 @@ App web de catálogo/documentação de um jogo 2D de coleção de criaturas com 
 
 Essa separação é deliberada — sem CRUD na UI, sem sessão, sem edição concorrente no navegador.
 
+## Modelo de ameaça
+
+**Os dados do bestiário não são valiosos.** Vazamento total do banco não geraria prejuízo — é catálogo de design de um jogo, nada pessoal, nada financeiro. Isso muda como pensamos segurança:
+
+- **O que importa proteger:** os vizinhos do servidor. Uma vulnerabilidade no bestiário não pode ser trampolim para o quartzo, o Postgres compartilhado, ou o sistema operacional.
+- **O que NÃO precisa de rigor:** confidencialidade dos dados, integridade forte, backup diário obsessivo, alertas 24/7.
+- **Consequência prática:** role Postgres `bestiary_app` estritamente sem `SUPERUSER`/`BYPASSRLS` e sem grants em outros DBs; processo PM2 rodando como user não-root sem sudo; sem endpoints que executem comandos de shell / uploads arbitrários; UFW seguindo o padrão da VPS (só 22/80/443); Nginx com `server_name` específico, sem catch-all. Rate limit leve ainda vale — protege a VPS de saturar, não os dados.
+
+Ao propor mudanças, calibrar por este modelo. Não perder tempo com criptografia de campos, auditoria fina, backup horário; **não** relaxar isolamento de perímetro.
+
 ## Stack
 
 Monorepo pnpm workspaces:

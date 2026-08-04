@@ -1,17 +1,34 @@
 # Deployment — Cronograma de Publicação
 
-Plano de subida do bestiário na mesma VPS que já hospeda o `quartzo`. Segue o padrão bash + PM2 + Nginx + Postgres compartilhado do quartzo — nada de CI/CD automático nem stack Docker dedicada nesta primeira leva.
+Plano de subida do bestiário na mesma VPS que já hospeda o `quartzo`. Segue o padrão bash + PM2 + Nginx + Postgres compartilhado do quartzo.
+
+## Modelo de ameaça (por que várias coisas foram simplificadas)
+
+**Os dados do bestiário não são valiosos.** Vazamento total do banco não geraria prejuízo — é catálogo de design de um jogo. O objetivo de segurança é **não vulnerabilizar os outros projetos da mesma VPS** (quartzo, o Postgres compartilhado, o SO).
+
+Consequência prática para este cronograma:
+
+| O que **importa** proteger (isolamento de perímetro) | O que **não** exige rigor |
+|---|---|
+| Role Postgres estritamente sem `SUPERUSER`/`BYPASSRLS` | Confidencialidade dos registros |
+| Nenhum grant em DBs de outros serviços | Backup diário automatizado (semanal ou on-demand basta) |
+| Processo PM2 como user não-root sem sudo | Alertas de uptime 24/7 |
+| Nginx com `server_name` específico, sem catch-all | Sentry / rastreamento de erros sofisticado |
+| Sem endpoints que executem shell / uploads arbitrários | Cifração de campos, auditoria fina |
+| UFW mantendo só 22/80/443 externos | Testes de restore mensais |
+| Rate limit leve (para não saturar a VPS) | Rate limit rigoroso (o Cloudflare na frente já cobre picos) |
+| Logrotate para não encher disco e afetar vizinhos | Retenção longa de logs |
 
 ## Alvo
 
 - **URL:** `https://bestiary.sysnode.com.br` (UI na raiz, API sob `/api/v1/*`)
 - **VPS:** mesma do quartzo (Ubuntu 22.04)
-- **Postgres:** mesma instância do quartzo (porta 5434) — apenas um novo DB `bestiary_prod` e um role dedicado `bestiary_app`
+- **Postgres:** mesma instância do quartzo (porta 5434) — novo DB `bestiary_prod` + role dedicada `bestiary_app`
 - **TLS:** wildcard existente `*.sysnode.com.br` (verificar; senão emitir novo cert DNS-01)
-- **Reverse proxy:** Nginx compartilhado (adicionar novo server block)
-- **Processo:** PM2 gerenciando `apps/api` (o `apps/web` é dist estático servido pelo Nginx)
+- **Reverse proxy:** Nginx compartilhado (novo server block)
+- **Processo:** PM2 gerenciando `apps/api`; `apps/web` é dist estático servido pelo Nginx
 - **Deploy:** `scripts/deploy.sh` manual via SSH
-- **Backup:** cron diário, `pg_dump` → Cloudflare R2 (rclone do quartzo)
+- **Backup:** *opcional na primeira leva* — se ligar, semanal + on-demand antes de deploys grandes
 
 ## Portas
 
@@ -28,7 +45,7 @@ Nenhuma nova porta exposta externamente — UFW segue `22/80/443`.
 
 ## Cronograma
 
-Total estimado: **~11h** de trabalho concentrado (1.5 a 2 dias úteis com folga para bugs). Cada fase produz artefatos verificáveis.
+Total estimado: **~7h** de trabalho concentrado (1 dia útil com folga). Encolheu de ~11h para ~7h por causa do modelo de ameaça — o que caiu está listado no rodapé.
 
 ### Fase 0 — Alinhamento *(feito nesta conversa)*
 
@@ -38,24 +55,22 @@ Decisões travadas:
 - ✓ Postgres compartilhado (novo DB dentro da mesma instância)
 - ✓ Subdomínio `bestiary.sysnode.com.br`
 - ✓ Deploy manual estilo quartzo (bash + PM2, sem CI/CD por ora)
+- ✓ Modelo de ameaça: proteger vizinhos, não os dados
 
-### Fase 1 — Preparo do repositório para produção *(≈2h)*
+### Fase 1 — Preparo do repositório para produção *(≈1h30)*
 
-Ajustes de código antes de qualquer coisa de infra. Tudo entra em PR local, sobe para `main`.
+Ajustes de código antes de qualquer coisa de infra.
 
-1. **`GET /health` no api** — endpoint público, sem X-API-Key, retorna `200 {"ok":true,"db":"up"}` após um `SELECT 1` no Postgres. É o que `deploy.sh` vai chamar em loop pós-reload.
-2. **CORS restrito em produção** — `apps/api/src/app.ts` hoje usa `origin: true`. Trocar para ler `CORS_ORIGIN` do env; em prod aceitar apenas `https://bestiary.sysnode.com.br`.
-3. **`env.ts` — novos campos:**
-   - `CORS_ORIGIN` (required em prod, optional em dev)
-   - `NODE_ENV` (default `development`)
-4. **`apps/web` build config** — garantir `base: "/"` no vite, output em `dist/` limpo, sem source maps em prod.
-5. **`.env.production.example` na raiz** — template com as vars de produção. Documenta cada campo. **Nunca** commita o `.env.production` real.
-6. **Rate limit leve nas rotas de escrita** — `express-rate-limit`, 60 req/min por IP nas rotas com `requireApiKey`. Public reads ficam sem limite (Cloudflare já protege).
-7. **Ajustar `openapi:generate`** para funcionar apontando para prod: aceitar `API_URL` via env.
+1. **`GET /health` no api** — endpoint público, sem X-API-Key, retorna `200 {"ok":true,"db":"up"}` após um `SELECT 1`. Necessário para `deploy.sh` fazer healthcheck retry pós-reload.
+2. **CORS restrito em produção** — hoje `origin: true`. Trocar para ler `CORS_ORIGIN` do env; em prod aceitar apenas `https://bestiary.sysnode.com.br`. Não é para proteger dados — é higiene mínima para o browser não permitir credenciais de outros sites do domínio.
+3. **`env.ts` — novos campos:** `CORS_ORIGIN`, `NODE_ENV`.
+4. **`.env.production.example`** — template com as vars de produção. Documenta cada campo.
+5. **`apps/web` build config** — garantir `base: "/"`, output em `dist/` limpo, sem source maps.
+6. **Rate limit leve nas rotas de escrita** — `express-rate-limit` com **300 req/min por IP** nas rotas com `requireApiKey`. Objetivo: evitar que um agente bugado sature CPU/DB e afete o quartzo. Não é para proteger dados. Leitura fica sem limite (Cloudflare cobre picos).
 
 **Critério de aceite:** `pnpm typecheck && pnpm build` limpo. `curl localhost:5101/health` responde 200.
 
-### Fase 2 — Scripts de infra no repositório *(≈4h)*
+### Fase 2 — Scripts de infra no repositório *(≈3h)*
 
 Espelham a estrutura `infra/` + `scripts/` do quartzo.
 
@@ -71,19 +86,20 @@ game/
 │       └── init-bestiary.sql   # CREATE DATABASE + CREATE ROLE (one-off)
 ├── scripts/
 │   ├── deploy.sh               # pull → install → build → migrate → pm2 reload → healthcheck
-│   └── backup-pg.sh            # pg_dump | gzip | rclone → R2
+│   └── backup-pg.sh            # (opcional) pg_dump | gzip | rclone → R2
 └── docs/
     ├── DEPLOYMENT.md           # este arquivo
     └── VPS_RUNBOOK.md          # onde encontrar logs, como reverter, como ver status
 ```
 
-**`ecosystem.config.cjs`** — PM2 gerencia só o processo `bestiary-api`:
+**`ecosystem.config.cjs`** — PM2 com **1 instância** (volume não justifica cluster) e restart em `400M`:
+
 ```js
 module.exports = {
   apps: [{
     name: "bestiary-api",
     script: "apps/api/dist/index.js",
-    instances: 1,               // sem cluster; o volume não justifica
+    instances: 1,
     max_memory_restart: "400M",
     env: { NODE_ENV: "production" },
     error_file: "/srv/bestiary/logs/api.err.log",
@@ -92,7 +108,8 @@ module.exports = {
 };
 ```
 
-**`scripts/deploy.sh`** — porta do padrão quartzo, adaptada:
+**`scripts/deploy.sh`** — porta do padrão quartzo:
+
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
@@ -110,130 +127,155 @@ done
 echo "healthcheck failed"; exit 1
 ```
 
-**`infra/nginx/bestiary.conf`** — bloco 443 seguindo padrão quartzo (HSTS, security headers, cache imutável para assets, no-cache para `index.html`, proxy `/api/*` para `localhost:5610`). Não repete `redirect 80→443` porque o quartzo já tem um bloco default cobrindo.
+**`infra/nginx/bestiary.conf`** — server 443 seguindo padrão quartzo:
+- `server_name bestiary.sysnode.com.br;` (**específico**, sem catch-all)
+- HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`
+- Cache imutável para `/assets/*`, no-cache para `index.html`
+- Proxy `/api/*` para `localhost:5610`
+- Não repete o `redirect 80→443` — o quartzo já tem bloco default
 
-**`scripts/backup-pg.sh`** — usa o mesmo rclone já configurado do quartzo, apenas com `PGDATABASE=bestiary_prod`. Retenção 30 dias no R2, 2 dias local.
+**Critério de aceite:** scripts commitados, `chmod +x`, shellcheck limpo.
 
-**Critério de aceite:** todos os scripts commitados no repo, `chmod +x`, shellcheck limpo.
+### Fase 3 — Setup inicial na VPS *(≈1h30, one-time via SSH)*
 
-### Fase 3 — Setup inicial na VPS *(≈2h, one-time via SSH)*
+Ações manuais, uma vez. Documentar em `docs/VPS_RUNBOOK.md`.
 
-Ações manuais, feitas uma vez. Vão para um runbook (`docs/VPS_RUNBOOK.md`) para referência.
-
-1. **Criar DB e role no Postgres** (rodar via `sudo -u postgres psql`):
+1. **Criar DB e role no Postgres** — **crítico para isolamento**:
    ```sql
-   CREATE ROLE bestiary_app WITH LOGIN PASSWORD '<forte>' NOSUPERUSER NOBYPASSRLS;
+   -- Rodar como postgres superuser
+   CREATE ROLE bestiary_app WITH LOGIN PASSWORD '<qualquer coisa>' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION;
    CREATE DATABASE bestiary_prod OWNER bestiary_app;
+   -- Garantia: revogar acesso público padrão
+   REVOKE ALL ON DATABASE bestiary_prod FROM PUBLIC;
    GRANT CONNECT ON DATABASE bestiary_prod TO bestiary_app;
    ```
-2. **Diretórios em `/srv/bestiary/`:**
+   Depois validar que `bestiary_app` NÃO consegue conectar em outros DBs:
+   ```bash
+   PGPASSWORD='...' psql -h localhost -p 5434 -U bestiary_app -d quartzo_prod -c '\dt'
+   # esperado: permission denied. Se conectar, GRANT foi mal feito.
+   ```
+2. **Usuário de sistema** — não rodar deploy como root. Usar o mesmo user `deploy` do quartzo (ou criar `bestiary`). PM2 herda o user; se rodar como root, isso VIRA vulnerabilidade que afeta os vizinhos.
+3. **Diretórios em `/srv/bestiary/`:**
    ```bash
    sudo mkdir -p /srv/bestiary/{current,logs,backups}
    sudo chown -R deploy:deploy /srv/bestiary
    ```
-3. **Clone inicial:**
+4. **Clone inicial:**
    ```bash
-   cd /srv/bestiary
-   git clone https://github.com/FellipeMoura/game current
+   cd /srv/bestiary && git clone https://github.com/FellipeMoura/game current
    ```
-4. **`.env.production` na VPS** (fora do repo, `/srv/bestiary/current/.env`):
+5. **`.env.production` na VPS** (fora do repo, `/srv/bestiary/current/.env`):
    ```
    NODE_ENV=production
    DATABASE_URL=postgres://bestiary_app:<senha>@localhost:5434/bestiary_prod
-   API_KEY=<gerar 32+ chars random>
+   API_KEY=<qualquer 24+ chars random>
    API_PORT=5610
    CORS_ORIGIN=https://bestiary.sysnode.com.br
    FONTES_DIR=./fontes
    ```
-5. **Cloudflare DNS:** adicionar A record `bestiary → <IP da VPS>`, proxy laranja on.
-6. **Nginx:**
+6. **Cloudflare DNS:** A record `bestiary → <IP da VPS>`, proxy laranja on.
+7. **Nginx:**
    ```bash
    sudo ln -s /srv/bestiary/current/infra/nginx/bestiary.conf /etc/nginx/sites-enabled/bestiary
    sudo nginx -t && sudo systemctl reload nginx
    ```
-7. **TLS:** verificar se cert `*.sysnode.com.br` já cobre (`sudo certbot certificates`). Se não, emitir:
-   ```bash
-   sudo certbot certonly --dns-cloudflare -d bestiary.sysnode.com.br
+8. **TLS:** `sudo certbot certificates` para checar se o wildcard cobre. Se não, emitir com `certbot certonly --dns-cloudflare -d bestiary.sysnode.com.br`.
+9. **Logrotate** — mais para não encher o disco e afetar vizinhos do que para segurança dos logs:
    ```
-8. **Cron do backup:**
-   ```
-   0 3 * * * /srv/bestiary/current/scripts/backup-pg.sh >> /srv/bestiary/logs/backup.log 2>&1
-   ```
-9. **Logrotate** — adicionar em `/etc/logrotate.d/bestiary`:
-   ```
+   # /etc/logrotate.d/bestiary
    /srv/bestiary/logs/*.log {
      daily rotate 14 compress delaycompress missingok notifempty
    }
    ```
 
-**Critério de aceite:** `psql -h localhost -p 5434 -U bestiary_app bestiary_prod -c '\dt'` conecta (mesmo sem tabelas ainda). Nginx serve `bestiary.sysnode.com.br` (404 do PM2 esperado — API ainda não subiu).
+**Critério de aceite:**
+- `psql -h localhost -p 5434 -U bestiary_app bestiary_prod -c '\dt'` conecta
+- `psql ... -U bestiary_app quartzo_prod` **falha** com permission denied
+- `ps aux | grep node` mostra o processo rodando como `deploy`, não `root`
+- Nginx serve `bestiary.sysnode.com.br` (502 esperado — PM2 ainda não subiu)
 
 ### Fase 4 — Primeiro deploy *(≈1h)*
 
 1. SSH na VPS, `cd /srv/bestiary/current`.
-2. Rodar `scripts/deploy.sh` pela primeira vez. Esperado:
+2. Rodar `scripts/deploy.sh`. Esperado:
    - install (~1 min)
    - build (~30s)
    - migrate cria as 15 tabelas
-   - seed **não** roda automaticamente — rodar manual uma vez: `pnpm db:seed` (popula o lote curado de arthropods; sem fontes, avisa `[skip]` para xlsx/docx e prossegue)
-   - pm2 sobe o processo, healthcheck passa
-3. **Smoke test:**
+   - seed **não** roda automaticamente — rodar manual uma vez: `pnpm db:seed` (popula o lote curado de arthropods; sem fontes, avisa `[skip]` e prossegue)
+   - pm2 sobe processo, healthcheck passa
+3. **Smoke tests:**
    ```bash
    curl https://bestiary.sysnode.com.br/health
    curl https://bestiary.sysnode.com.br/api/v1/elements
    curl https://bestiary.sysnode.com.br/api/v1/creatures
    ```
-4. Abrir `https://bestiary.sysnode.com.br/bestiary/CRT-001` no browser — a ficha deve carregar com Trilobita + Isotelus.
+4. Abrir `https://bestiary.sysnode.com.br/bestiary/CRT-001` no browser.
+5. **Teste do rate limit:** disparar 400 requests em 1 min contra rota de escrita — as últimas devem retornar `429`.
 
-**Critério de aceite:** os 3 curls devolvem 200 com payload esperado. UI renderiza a ficha completa.
+**Critério de aceite:** curls devolvem 200 com payload esperado. UI renderiza a ficha. Rate limit ativa.
 
-### Fase 5 — Backup + monitor mínimo *(≈2h)*
+### Fase 5 — Higiene mínima *(≈45min)*
 
-1. **Testar backup end-to-end:**
-   ```bash
-   /srv/bestiary/current/scripts/backup-pg.sh
-   # verificar em R2 se o arquivo apareceu
-   # restaurar em um DB temporário para validar integridade:
-   createdb bestiary_test
-   gunzip -c /srv/bestiary/backups/latest.sql.gz | psql bestiary_test
-   ```
-2. **Uptime monitor** — adicionar `https://bestiary.sysnode.com.br/health` no Uptime Kuma (ou criar um health check no Cloudflare). Alerta por e-mail se cair.
-3. **Sentry (opcional):** se o volume de erros justificar, adicionar SENTRY_DSN em `.env.production` e chamar `Sentry.init()` no `apps/api/src/index.ts`.
-4. **Documentar** procedimentos em `docs/VPS_RUNBOOK.md`:
+O que **precisa** existir para não deixar sujeira no servidor:
+
+1. **`docs/VPS_RUNBOOK.md`** — documentar:
    - Como ver logs (`pm2 logs bestiary-api`, `tail -f /srv/bestiary/logs/*.log`)
    - Como reverter (`git reset --hard <sha>` + `deploy.sh`)
-   - Como rodar um seed manual (`pnpm db:seed`)
-   - Como restaurar backup
+   - Como rodar seed manual
+   - Como fazer backup sob demanda: `pg_dump -h localhost -p 5434 -U bestiary_app bestiary_prod > snapshot.sql`
+   - Como parar tudo se precisar (`pm2 stop bestiary-api`)
+2. **Snapshot manual antes de deploys arriscados** — comando pronto no runbook, sem cron.
+3. **Log rotation ativado** (já feito na fase 3).
+4. **Confirmar que `pm2 startup`** foi feito no user `deploy` — se a VPS reiniciar, o bestiário volta sem intervenção. Não custa nada e evita ligar o servidor às 3h da manhã.
 
-**Critério de aceite:** backup rodou, arquivo está no R2, restore em DB temporário abre sem erro. Alerta de uptime dispara quando `systemctl stop nginx` (teste breve, depois retomar).
+**Critério de aceite:** runbook existe, `pm2 save && pm2 startup` executados, log rotation configurado.
+
+### *(Opcional)* Fase 6 — Se quiser mais tarde
+
+Coisas que **não** entram na primeira leva por causa do modelo de ameaça, mas ficam fáceis de adicionar depois:
+
+- **Backup semanal automatizado** para R2 (reusar o rclone do quartzo). Adicionar um cron `0 3 * * 0` chamando `scripts/backup-pg.sh`.
+- **Uptime Kuma** apontando para `/health` com alerta por e-mail.
+- **Sentry** — só se aparecer volume real de erros para justificar.
+- **CI leve** — GitHub Actions rodando `pnpm typecheck && pnpm build` em PR (não bloqueia merge, só sinaliza).
 
 ---
 
 ## Riscos e mitigações
 
-| Risco | Mitigação |
-|---|---|
-| Migration falha em prod | `deploy.sh` roda tudo em transação; se `pnpm db:migrate` falhar, script sai antes de `pm2 reload` — apps continuam servindo versão antiga |
-| Cert wildcard não cobre subdomínio | Fallback: emitir cert específico via `certbot --dns-cloudflare` — testado antes de apontar DNS |
-| CORS quebra no browser | Testar `curl -H "Origin: https://bestiary.sysnode.com.br" -v` já na fase 4 |
-| Conflito de porta com quartzo | 5610 escolhida com folga; sanity-check antes: `ss -tlnp \| grep 5610` |
-| Deploy corrompe estado | Backup automático diário + snapshot manual antes de deploys estranhos |
-| Agente floods a API | Rate limit leve nas rotas de escrita (fase 1) |
-| Perda do `.env.production` | Cópia cifrada no cofre pessoal (1Password / age / etc) — o `API_KEY` é a única coisa que não dá para regerar sem invalidar os agentes ativos |
+Recalibrados para o modelo de ameaça. Riscos que só afetam o próprio bestiário viraram *aceitáveis*; riscos que ameaçam os vizinhos ficaram como bloqueadores.
+
+| Risco | Afeta vizinhos? | Mitigação |
+|---|---|---|
+| `bestiary_app` com privilégio a mais | **Sim** | `NOSUPERUSER NOBYPASSRLS NOCREATEDB`; teste explícito na fase 3 |
+| PM2 rodando como root | **Sim** | Fase 3, item 2 — user `deploy` |
+| Nginx com catch-all engolindo outros hosts | **Sim** | `server_name` específico, `nginx -t` antes de reload |
+| Migration falha em prod | Não (só bestiário) | Aceitável; deploy.sh sai antes do reload, apps continuam versão antiga |
+| Bestiário cai | Não | Aceitável — corrigir quando notar |
+| Dados vazam | Não | Aceitável — não são valiosos |
+| API sobrecarregada satura CPU/DB | **Sim** (afeta quartzo) | Rate limit 300 req/min por IP; PM2 `max_memory_restart 400M` |
+| Log enche disco | **Sim** | Logrotate diário, 14 dias |
+| Conflito de porta | Sim (deploy quebra) | 5610 escolhida; `ss -tlnp \| grep 5610` antes de subir |
+| Cert wildcard não cobre | Não (bestiário 502) | Fallback: `certbot --dns-cloudflare` |
 
 ## Fora do escopo desta primeira leva
 
-- CI (typecheck/build em PR) — próxima iteração; hoje o typecheck é local
-- Deploy automático em push para main — próxima iteração
-- Cluster PM2 / múltiplas instâncias — volume não justifica
-- CDN dedicada para assets — Cloudflare na frente já resolve
-- Autenticação de usuário — não faz parte do escopo do produto
-- Rate limit em leitura — Cloudflare cobre
+Sem justificativa dado o modelo de ameaça:
+
+- CI (typecheck/build em PR)
+- Deploy automático em push para main
+- Cluster PM2 / múltiplas instâncias
+- Backup diário obrigatório (semanal opcional na fase 6)
+- Uptime monitor obrigatório (opcional na fase 6)
+- Sentry
+- Cifração de campos
+- Auditoria de acesso ao banco
+- Autenticação de usuário
 
 ## Checklist enxuto (para colar em issue)
 
-- [ ] Fase 1: `/health`, CORS, `.env.production.example`, rate limit
-- [ ] Fase 2: `deploy.sh`, `backup-pg.sh`, `ecosystem.config.cjs`, `infra/nginx/bestiary.conf`
-- [ ] Fase 3: DB + role Postgres, `/srv/bestiary/` dirs, DNS Cloudflare, Nginx symlink + reload, TLS, cron, logrotate
-- [ ] Fase 4: primeiro `deploy.sh`, `pnpm db:seed` manual, smoke tests de 3 endpoints + UI
-- [ ] Fase 5: backup end-to-end testado, Uptime Kuma configurado, `VPS_RUNBOOK.md` escrito
+- [ ] Fase 1: `/health`, CORS, `.env.production.example`, rate limit leve
+- [ ] Fase 2: `deploy.sh`, `ecosystem.config.cjs`, `infra/nginx/bestiary.conf`
+- [ ] Fase 3: DB + role `NOSUPERUSER`, user `deploy` não-root, `/srv/bestiary/`, DNS, Nginx, TLS, logrotate — validar que `bestiary_app` **não** conecta em `quartzo_prod`
+- [ ] Fase 4: primeiro `deploy.sh`, `pnpm db:seed` manual, smoke tests + rate limit
+- [ ] Fase 5: `docs/VPS_RUNBOOK.md`, `pm2 save && pm2 startup`
