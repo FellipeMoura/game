@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { db, sql } from "../client";
 import { seedPaleozoicBatch1 } from "./content/paleozoic-batch-1";
+import { seedReferenceData } from "./content/reference-data";
 import { noteDevLog, seedBible, seedRoadmap } from "./docx";
 import { seedXlsx } from "./xlsx";
 
@@ -33,8 +34,11 @@ async function main(): Promise<void> {
   if (existsSync(xlsx)) await seedXlsx(db, xlsx);
   else console.warn(`[skip] ${xlsx} not found`);
 
-  // Curated content batches — depend on classes/elements/maps/biomes from xlsx.
+  // Curated content batches — reference data first so subsequent batches
+  // find the FK codes they need. seedReferenceData is idempotent, so it's
+  // safe to run even when the xlsx above already covered these tables.
   console.log("curated content:");
+  await seedReferenceData(db);
   await seedPaleozoicBatch1(db);
 
   if (existsSync(bible)) await seedBible(db, bible);
