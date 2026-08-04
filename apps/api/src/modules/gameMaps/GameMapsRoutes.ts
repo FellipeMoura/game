@@ -6,6 +6,7 @@ import {
   CodeParamsSchema,
   CreateGameMapBodySchema,
   CreatedResponseSchema,
+  DeleteGameMapBodySchema,
   GameMapSchema,
   ListGameMapsQuerySchema,
   UpdateGameMapBodySchema,
@@ -26,5 +27,6 @@ export const gameMapsRouter = registerCrudRoutes({
     createdResponse: CreatedResponseSchema,
     updatedResponse: UpdatedResponseSchema,
     batchCreatedResponse: BatchCreatedResponseSchema,
+    deleteBody: DeleteGameMapBodySchema,
   },
 });

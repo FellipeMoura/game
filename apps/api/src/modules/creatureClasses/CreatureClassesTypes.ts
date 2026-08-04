@@ -50,7 +50,10 @@ const coreSchema = z.object({
   status: z.string().max(32).nullish(),
 });
 
+// See ElementsTypes for the rationale on making `code` optional only for
+// single-create (the factory auto-generates `CLS-NNN`).
 export const CreateCreatureClassBodySchema = coreSchema
+  .extend({ code: coreSchema.shape.code.optional() })
   .merge(changeMetadataSchema)
   .openapi("CreateCreatureClassBody");
 
@@ -77,6 +80,11 @@ export const BatchCreatedResponseSchema = z
   .object({ codes: z.array(z.string()), version: z.string() })
   .openapi("BatchCreatedResponse");
 
+export const DeleteCreatureClassBodySchema = changeMetadataSchema.openapi(
+  "DeleteCreatureClassBody",
+);
+
 export type CreateCreatureClassBody = z.infer<typeof CreateCreatureClassBodySchema>;
 export type UpdateCreatureClassBody = z.infer<typeof UpdateCreatureClassBodySchema>;
 export type BatchCreateCreatureClassesBody = z.infer<typeof BatchCreateCreatureClassesBodySchema>;
+export type DeleteCreatureClassBody = z.infer<typeof DeleteCreatureClassBodySchema>;

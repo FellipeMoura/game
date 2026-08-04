@@ -8,4 +8,5 @@ export const biomesService = createSimpleCrudService({
   humanName: "Biome",
   allowedFields: BIOME_FIELDS,
   displayField: "name",
+  codePrefix: "BIO",
 });

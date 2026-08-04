@@ -1,6 +1,11 @@
 import type { RequestHandler } from "express";
 import { itemsService } from "./ItemsService";
-import type { BatchCreateItemsBody, CreateItemBody, UpdateItemBody } from "./ItemsTypes";
+import type {
+  BatchCreateItemsBody,
+  CreateItemBody,
+  DeleteItemBody,
+  UpdateItemBody,
+} from "./ItemsTypes";
 
 export const itemsController = {
   list: (async (req, res) => {
@@ -26,5 +31,8 @@ export const itemsController = {
   }) satisfies RequestHandler,
   batchCreate: (async (req, res) => {
     res.status(201).json(await itemsService.batchCreate(req.body as BatchCreateItemsBody));
+  }) satisfies RequestHandler,
+  delete: (async (req, res) => {
+    res.status(200).json(await itemsService.remove(req.params.code!, req.body as DeleteItemBody));
   }) satisfies RequestHandler,
 };

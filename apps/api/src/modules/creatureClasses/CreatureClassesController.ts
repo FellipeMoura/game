@@ -3,6 +3,7 @@ import { creatureClassesService } from "./CreatureClassesService";
 import type {
   BatchCreateCreatureClassesBody,
   CreateCreatureClassBody,
+  DeleteCreatureClassBody,
   UpdateCreatureClassBody,
 } from "./CreatureClassesTypes";
 
@@ -41,5 +42,13 @@ export const creatureClassesController = {
       req.body as BatchCreateCreatureClassesBody,
     );
     res.status(201).json(result);
+  }) satisfies RequestHandler,
+
+  delete: (async (req, res) => {
+    const result = await creatureClassesService.remove(
+      req.params.code!,
+      req.body as DeleteCreatureClassBody,
+    );
+    res.status(200).json(result);
   }) satisfies RequestHandler,
 };

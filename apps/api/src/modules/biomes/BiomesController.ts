@@ -1,6 +1,11 @@
 import type { RequestHandler } from "express";
 import { biomesService } from "./BiomesService";
-import type { BatchCreateBiomesBody, CreateBiomeBody, UpdateBiomeBody } from "./BiomesTypes";
+import type {
+  BatchCreateBiomesBody,
+  CreateBiomeBody,
+  DeleteBiomeBody,
+  UpdateBiomeBody,
+} from "./BiomesTypes";
 
 export const biomesController = {
   list: (async (req, res) => {
@@ -19,5 +24,10 @@ export const biomesController = {
   }) satisfies RequestHandler,
   batchCreate: (async (req, res) => {
     res.status(201).json(await biomesService.batchCreate(req.body as BatchCreateBiomesBody));
+  }) satisfies RequestHandler,
+  delete: (async (req, res) => {
+    res
+      .status(200)
+      .json(await biomesService.remove(req.params.code!, req.body as DeleteBiomeBody));
   }) satisfies RequestHandler,
 };

@@ -7,6 +7,7 @@ import {
   CreateCreatureClassBodySchema,
   CreatedResponseSchema,
   CreatureClassSchema,
+  DeleteCreatureClassBodySchema,
   ListCreatureClassesQuerySchema,
   UpdateCreatureClassBodySchema,
   UpdatedResponseSchema,
@@ -26,5 +27,6 @@ export const creatureClassesRouter = registerCrudRoutes({
     createdResponse: CreatedResponseSchema,
     updatedResponse: UpdatedResponseSchema,
     batchCreatedResponse: BatchCreatedResponseSchema,
+    deleteBody: DeleteCreatureClassBodySchema,
   },
 });

@@ -6,6 +6,7 @@ import {
   CodeParamsSchema,
   CreateItemBodySchema,
   CreatedResponseSchema,
+  DeleteItemBodySchema,
   ItemSchema,
   ListItemsQuerySchema,
   UpdateItemBodySchema,
@@ -26,5 +27,6 @@ export const itemsRouter = registerCrudRoutes({
     createdResponse: CreatedResponseSchema,
     updatedResponse: UpdatedResponseSchema,
     batchCreatedResponse: BatchCreatedResponseSchema,
+    deleteBody: DeleteItemBodySchema,
   },
 });

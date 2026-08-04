@@ -7,6 +7,7 @@ import {
   CodeParamsSchema,
   CreateBiomeBodySchema,
   CreatedResponseSchema,
+  DeleteBiomeBodySchema,
   ListBiomesQuerySchema,
   UpdateBiomeBodySchema,
   UpdatedResponseSchema,
@@ -26,5 +27,6 @@ export const biomesRouter = registerCrudRoutes({
     createdResponse: CreatedResponseSchema,
     updatedResponse: UpdatedResponseSchema,
     batchCreatedResponse: BatchCreatedResponseSchema,
+    deleteBody: DeleteBiomeBodySchema,
   },
 });

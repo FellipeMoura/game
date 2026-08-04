@@ -10,6 +10,7 @@ const base = createSimpleCrudService({
   humanName: "Item",
   allowedFields: ITEM_FIELDS,
   displayField: "name",
+  codePrefix: "ITM",
 });
 
 export const itemsService = {

@@ -58,7 +58,12 @@ const elementCoreSchema = z.object({
   notes: z.string().max(2000).nullish(),
 });
 
+// `code` is optional on single-create: the factory generates the next
+// `ELE-NNN` if omitted. Batch keeps `code` required — curated imports
+// always know their codes and mixing auto-gen inside a batch complicates
+// error reporting for LLM callers.
 export const CreateElementBodySchema = elementCoreSchema
+  .extend({ code: elementCoreSchema.shape.code.optional() })
   .merge(changeMetadataSchema)
   .openapi("CreateElementBody");
 
@@ -91,6 +96,9 @@ export const BatchCreatedResponseSchema = z
   .object({ codes: z.array(z.string()), version: z.string() })
   .openapi("BatchCreatedResponse");
 
+export const DeleteElementBodySchema = changeMetadataSchema.openapi("DeleteElementBody");
+
 export type CreateElementBody = z.infer<typeof CreateElementBodySchema>;
 export type UpdateElementBody = z.infer<typeof UpdateElementBodySchema>;
 export type BatchCreateElementsBody = z.infer<typeof BatchCreateElementsBodySchema>;
+export type DeleteElementBody = z.infer<typeof DeleteElementBodySchema>;

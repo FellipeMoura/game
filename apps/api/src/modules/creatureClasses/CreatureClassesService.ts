@@ -8,4 +8,5 @@ export const creatureClassesService = createSimpleCrudService({
   humanName: "Creature class",
   allowedFields: CREATURE_CLASS_FIELDS,
   displayField: "name",
+  codePrefix: "CLS",
 });

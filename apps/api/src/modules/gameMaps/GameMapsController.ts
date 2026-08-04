@@ -1,6 +1,11 @@
 import type { RequestHandler } from "express";
 import { gameMapsService } from "./GameMapsService";
-import type { BatchCreateGameMapsBody, CreateGameMapBody, UpdateGameMapBody } from "./GameMapsTypes";
+import type {
+  BatchCreateGameMapsBody,
+  CreateGameMapBody,
+  DeleteGameMapBody,
+  UpdateGameMapBody,
+} from "./GameMapsTypes";
 
 export const gameMapsController = {
   list: (async (req, res) => {
@@ -28,5 +33,10 @@ export const gameMapsController = {
   }) satisfies RequestHandler,
   batchCreate: (async (req, res) => {
     res.status(201).json(await gameMapsService.batchCreate(req.body as BatchCreateGameMapsBody));
+  }) satisfies RequestHandler,
+  delete: (async (req, res) => {
+    res
+      .status(200)
+      .json(await gameMapsService.remove(req.params.code!, req.body as DeleteGameMapBody));
   }) satisfies RequestHandler,
 };

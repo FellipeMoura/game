@@ -82,6 +82,14 @@ export function createApp() {
   v1.use("/changelog", changelogRouter);
   app.use("/api/v1", v1);
 
+  // Catch-all 404 in JSON — Express's default is HTML, which is opaque to the
+  // LLM consumers. Naming the method + path also hints at typos ("DELETE
+  // /api/v1/creature-classes/CLS-004" tells the agent the route doesn't exist
+  // instead of a bare page saying "Cannot DELETE ...").
+  app.use((req, res) => {
+    res.status(404).json({ message: `${req.method} ${req.originalUrl} not found` });
+  });
+
   app.use(handleError);
   return app;
 }

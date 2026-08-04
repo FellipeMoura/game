@@ -3,6 +3,7 @@ import { elementsService } from "./ElementsService";
 import type {
   BatchCreateElementsBody,
   CreateElementBody,
+  DeleteElementBody,
   UpdateElementBody,
 } from "./ElementsTypes";
 
@@ -37,5 +38,10 @@ export const elementsController = {
   batchCreate: (async (req, res) => {
     const result = await elementsService.batchCreate(req.body as BatchCreateElementsBody);
     res.status(201).json(result);
+  }) satisfies RequestHandler,
+
+  delete: (async (req, res) => {
+    const result = await elementsService.remove(req.params.code!, req.body as DeleteElementBody);
+    res.status(200).json(result);
   }) satisfies RequestHandler,
 };

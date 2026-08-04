@@ -48,7 +48,9 @@ export const BatchCreateGameMapsBodySchema = z.object({
 export const CreatedResponseSchema = z.object({ code: z.string(), version: z.string() }).openapi("CreatedResponse");
 export const UpdatedResponseSchema = z.object({ code: z.string(), version: z.string() }).openapi("UpdatedResponse");
 export const BatchCreatedResponseSchema = z.object({ codes: z.array(z.string()), version: z.string() }).openapi("BatchCreatedResponse");
+export const DeleteGameMapBodySchema = changeMetadataSchema.openapi("DeleteGameMapBody");
 
 export type CreateGameMapBody = z.infer<typeof CreateGameMapBodySchema>;
 export type UpdateGameMapBody = z.infer<typeof UpdateGameMapBodySchema>;
 export type BatchCreateGameMapsBody = z.infer<typeof BatchCreateGameMapsBodySchema>;
+export type DeleteGameMapBody = z.infer<typeof DeleteGameMapBodySchema>;

@@ -34,7 +34,11 @@ const coreSchema = z.object({
   notes: z.string().max(2000).nullish(),
 });
 
-export const CreateItemBodySchema = coreSchema.merge(changeMetadataSchema).openapi("CreateItemBody");
+// `code` optional on single-create — factory auto-generates `ITM-NNN`.
+export const CreateItemBodySchema = coreSchema
+  .extend({ code: coreSchema.shape.code.optional() })
+  .merge(changeMetadataSchema)
+  .openapi("CreateItemBody");
 export const UpdateItemBodySchema = coreSchema.partial().merge(changeMetadataSchema).openapi("UpdateItemBody");
 export const BatchCreateItemsBodySchema = z.object({
   items: z.array(coreSchema).min(1).max(100),
@@ -45,7 +49,9 @@ export const BatchCreateItemsBodySchema = z.object({
 export const CreatedResponseSchema = z.object({ code: z.string(), version: z.string() }).openapi("CreatedResponse");
 export const UpdatedResponseSchema = z.object({ code: z.string(), version: z.string() }).openapi("UpdatedResponse");
 export const BatchCreatedResponseSchema = z.object({ codes: z.array(z.string()), version: z.string() }).openapi("BatchCreatedResponse");
+export const DeleteItemBodySchema = changeMetadataSchema.openapi("DeleteItemBody");
 
 export type CreateItemBody = z.infer<typeof CreateItemBodySchema>;
 export type UpdateItemBody = z.infer<typeof UpdateItemBodySchema>;
 export type BatchCreateItemsBody = z.infer<typeof BatchCreateItemsBodySchema>;
+export type DeleteItemBody = z.infer<typeof DeleteItemBodySchema>;

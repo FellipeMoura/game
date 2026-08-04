@@ -10,6 +10,7 @@ const base = createSimpleCrudService({
   humanName: "Element",
   allowedFields: ELEMENT_FIELDS,
   displayField: "name",
+  codePrefix: "ELE",
 });
 
 interface ListParams {
