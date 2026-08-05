@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel --stream run dev",
+    "dev": "pnpm db:check-stale && pnpm -r --parallel --stream run dev",
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
@@ -16,6 +16,8 @@
     "db:generate": "pnpm --filter @bestiary/db run generate",
     "db:migrate": "pnpm --filter @bestiary/db run migrate",
     "db:seed": "pnpm --filter @bestiary/db run seed",
+    "db:pull": "pnpm --filter @bestiary/db run pull",
+    "db:check-stale": "pnpm --filter @bestiary/db run check-stale",
     "db:studio": "pnpm --filter @bestiary/db run studio",
     "db:reset": "pnpm db:create && pnpm db:generate && pnpm db:migrate && pnpm db:seed",
     "openapi:generate": "pnpm --filter @bestiary/web run openapi:generate"

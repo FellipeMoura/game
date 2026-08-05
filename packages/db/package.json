@@ -14,6 +14,8 @@
     "generate": "drizzle-kit generate",
     "migrate": "tsx src/migrate.ts",
     "seed": "tsx src/seed/index.ts",
+    "pull": "tsx src/pull.ts",
+    "check-stale": "tsx src/checkStaleness.ts",
     "studio": "drizzle-kit studio",
     "typecheck": "tsc --noEmit"
   },

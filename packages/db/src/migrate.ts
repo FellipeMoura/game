@@ -7,7 +7,7 @@ if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL is required");
 }
 
-const migrationClient = postgres(process.env.DATABASE_URL, { max: 1 });
+const migrationClient = postgres(process.env.DATABASE_URL, { max: 1, onnotice: () => {} });
 
 await migrate(drizzle(migrationClient), { migrationsFolder: "./drizzle" });
 await migrationClient.end();
