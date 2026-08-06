@@ -1,6 +1,8 @@
 # Bestiário — App de Catálogo e Documentação
 
-Web app que substitui `.docx`/`.xlsx` como fonte de verdade de um jogo 2D de coleção de criaturas com tema paleontológico. **Este repositório não é o jogo** — o jogo em Godot vive em outro lugar.
+Web app que substitui `.docx`/`.xlsx` como fonte de verdade de um jogo 3D de coleção de criaturas com tema paleontológico. **Este repositório não é o jogo** — o jogo em Godot vive num repositório irmão, alimentado por `pnpm game:export`.
+
+O jogo: Godot, câmera isométrica ortográfica travada em 30°/45°, exploração em tempo real e combate por turnos.
 
 ## Dois públicos
 
@@ -13,7 +15,7 @@ Monorepo pnpm com três workspaces:
 
 - **`apps/api`** — Node + TypeScript + Express + Drizzle + Zod + `zod-to-openapi` + PostgreSQL. Feature-folders em `modules/<feature>/{Routes,Controller,Service,Types}.ts`.
 - **`apps/web`** — Vite + React 19 + React Router 7 + TanStack Query + Tailwind + `openapi-fetch` (cliente TS gerado do `/openapi.json`).
-- **`packages/db`** — schemas Drizzle, migrations e seed. Seed lê `./fontes/` (xlsx/docx) + aplica lotes curados de conteúdo (`seed/content/*.ts`).
+- **`packages/db`** — schemas Drizzle e migrations. O seed está **congelado** (bootstrap offline apenas) — conteúdo novo entra pela API, e um dev hidrata a máquina com `pnpm db:pull`.
 
 **Sem** Docker em produção, Redis, BullMQ, Socket.io, MinIO, RLS, JWT, OAuth, rate limiting. Autenticação = header `X-API-Key` estático em rotas de escrita; leitura aberta.
 
@@ -30,13 +32,17 @@ Copy-Item .env.example .env
 # 3. Postgres via Docker (dispensa psql local)
 docker run -d --name pg-bestiary -e POSTGRES_PASSWORD=postgres -p 5102:5432 postgres:16
 
-# 4. cria banco + gera migration + aplica + popula seed
-pnpm db:reset
+# 4. cria banco + aplica migrations
+pnpm db:create && pnpm db:migrate
 
-# 5. sobe API + UI em paralelo
+# 5. traz um snapshot de produção (caminho normal)
+pnpm db:pull
+#    sem rede? `pnpm db:seed` faz um bootstrap mínimo offline
+
+# 6. sobe API + UI em paralelo
 pnpm dev
 
-# 6. (opcional) regenerar tipos TS do OpenAPI real com a API rodando
+# 7. (opcional) regenerar tipos TS do OpenAPI real com a API rodando
 pnpm openapi:generate
 ```
 
@@ -110,11 +116,26 @@ game/
 └── .env                        DATABASE_URL, API_KEY, API_PORT, FONTES_DIR
 ```
 
-## Recursos da API (14)
+## Recursos da API
 
-`elements`, `elemental-advantages`, `creature-classes`, `creatures`, `awakenings`, `maps`, `biomes`, `map-biomes`, `abilities`, `items`, `npcs`, `missions`, `drops`, `documents`, `changelog`, mais o endpoint especial `GET /context` (snapshot markdown do estado do projeto para agentes começarem sessão).
+**Catálogo:** `elements`, `elemental-advantages`, `creature-classes`, `creatures`, `awakenings`, `maps`, `biomes`, `map-biomes`, `abilities`, `items`, `npcs`, `missions`, `drops`, `documents`, `changelog`.
 
-Cada recurso normal expõe: `GET /` (com filtros + `?fields=` + paginação), `GET /{code}`, `POST /` (com `reason`/`impact`), `PATCH /{code}`, `POST /batch`. Junções (`drops`, `map-biomes`, `elemental-advantages`) usam semântica upsert.
+**Camada de números** (o que o jogo executa): `creature-stats`, `ability-stats`, `capture-rules`, `creature-abilities`.
+
+Mais o endpoint especial `GET /context` — snapshot markdown do estado do projeto, primeira leitura de qualquer agente.
+
+Cada recurso normal expõe: `GET /` (com filtros + `?fields=` + paginação), `GET /{code}`, `POST /` (com `reason`/`impact`), `PATCH /{code}`, `POST /batch`. Junções (`drops`, `map-biomes`, `elemental-advantages`) e a camada de números usam semântica upsert — re-POST para mudar um valor, sem PATCH.
+
+## Export para o jogo
+
+```powershell
+pnpm game:export                          # da API local para ../godot
+pnpm game:export --from https://bestiary.sysnode.com.br --out ../meu-repo-godot
+```
+
+Gera `data/bestiary.json` no repo do Godot: um bundle com `dataVersion` (tirado do changelog), tudo endereçado por código — nenhum id numérico atravessa a fronteira. Build-time, não runtime: o jogo abre offline e cada build é rastreável até o estado exato do catálogo.
+
+O export **aborta sem escrever nada** se alguma criatura estiver sem stats, sem regra de captura ou sem golpes.
 
 `GET /documents/{slug}` faz content negotiation: `Accept: text/markdown` devolve markdown puro (token cheap); JSON caso contrário.
 

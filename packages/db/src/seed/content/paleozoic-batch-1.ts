@@ -1,6 +1,11 @@
 /**
- * First curated batch of Paleozoic creatures — 15 arthropods + 1 "incerta"
- * (Tullimonstrum). Idempotent: upserts by `code`. Written to the DB directly,
+ * First curated batch of Paleozoic creatures — 15 arthropods.
+ *
+ * Tullimonstrum (CRT-012) used to be here under a provisional "Incertos"
+ * class. It was dropped when the roster was scoped to three lineages:
+ * Artropodes, Sinapsideos and Sauropsideos. Its awakening went with it.
+ *
+ * Idempotent: upserts by `code`. Written to the DB directly,
  * bypassing the API's terminology validator, which is appropriate for
  * bulk seeding — a single hand-written changelog entry summarises the batch.
  *
@@ -39,10 +44,10 @@ interface Row {
 }
 
 // Element mapping (existing seed):
-//   ELE-001 Fogo   ELE-002 Agua   ELE-003 Natureza   ELE-004 Terra   ELE-005 Eletricidade
-// Class mapping:
+//   ELE-001 Fogo   ELE-002 Agua   ELE-003 Natureza   ELE-004 Terra
+//   ELE-005 Eletricidade   ELE-006 Gelo
+// Class mapping — the three lineages in scope:
 //   CLS-001 Artropodes   CLS-002 Sinapsideos   CLS-003 Sauropsideos
-//   CLS-004 Vertebrados Primitivos   CLS-005 Incertos (created below)
 // Map / biome:
 //   PZ-01 Paleozoico costa/mar raso   BIO-001 Mar raso
 const AQ = "BIO-001";
@@ -138,14 +143,6 @@ const ROWS: Row[] = [
     },
   },
   {
-    code: "CRT-012", species: "Tullimonstrum", classCode: "CLS-005", elementCode: "ELE-002",
-    mapCode: PZ, biomeCode: AQ,
-    awakening: {
-      code: "DSP-012", name: "Tullimonstrum Omega", kind: "reinforcement", referenceSpecies: null,
-      notes: "A classificação biológica incerta dá grande liberdade criativa para criar um despertar ancestral completamente original.",
-    },
-  },
-  {
     code: "CRT-013", species: "Aegirocassis", classCode: "CLS-001", elementCode: "ELE-002",
     mapCode: PZ, biomeCode: AQ,
     awakening: {
@@ -188,20 +185,6 @@ async function resolveId(tx: Tx, table: any, code: string, label: string): Promi
   const rows = await tx.select({ id: table.id }).from(table).where(eq(table.code, code)).limit(1);
   if (!rows[0]) throw new Error(`${label}: '${code}' does not exist`);
   return rows[0].id;
-}
-
-async function upsertClass(tx: Tx, code: string, name: string, notes: string) {
-  const existing = await tx
-    .select({ id: schema.creatureClasses.id })
-    .from(schema.creatureClasses)
-    .where(eq(schema.creatureClasses.code, code))
-    .limit(1);
-  if (existing[0]) return existing[0].id;
-  const inserted = await tx
-    .insert(schema.creatureClasses)
-    .values({ code, name, biologicalScope: notes, status: "Provisória" })
-    .returning({ id: schema.creatureClasses.id });
-  return inserted[0]!.id;
 }
 
 async function upsertCreature(tx: Tx, row: Row): Promise<number> {
@@ -286,13 +269,6 @@ async function computeNextVersion(tx: Tx): Promise<string> {
  */
 export async function seedPaleozoicBatch1(db: Database): Promise<void> {
   await db.transaction(async (tx) => {
-    await upsertClass(
-      tx,
-      "CLS-005",
-      "Incertos",
-      "Criaturas de classificação biológica incerta (ex: Tullimonstrum) — cabem aqui até que um posicionamento definitivo seja escolhido.",
-    );
-
     // If a prior run already recorded this batch, don't add another changelog
     // entry. We detect by looking for our marker change string.
     const marker = "Import: Paleozoic batch 1";

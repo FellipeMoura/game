@@ -42,4 +42,12 @@ export const creaturesController = {
     const result = await creaturesService.batchCreate(req.body as BatchCreateCreaturesBody);
     res.status(201).json(result);
   }) satisfies RequestHandler,
+
+  delete: (async (req, res) => {
+    const result = await creaturesService.remove(
+      req.params.code!,
+      req.body as { reason: string; impact: string },
+    );
+    res.status(200).json(result);
+  }) satisfies RequestHandler,
 };

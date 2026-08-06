@@ -20,7 +20,8 @@
     "db:check-stale": "pnpm --filter @bestiary/db run check-stale",
     "db:studio": "pnpm --filter @bestiary/db run studio",
     "db:reset": "pnpm db:create && pnpm db:generate && pnpm db:migrate && pnpm db:seed",
-    "openapi:generate": "pnpm --filter @bestiary/web run openapi:generate"
+    "openapi:generate": "pnpm --filter @bestiary/web run openapi:generate",
+    "game:export": "node scripts/export-game-data.mjs"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

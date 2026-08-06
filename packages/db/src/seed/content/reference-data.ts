@@ -1,7 +1,15 @@
 /**
- * Minimum reference data every install needs: the 5 base elements, the 4
- * biological classes, the first Paleozoic map (PZ-01) and one biome
- * (Mar raso). These used to be sourced from the xlsx but got promoted to
+ * Minimum reference data every install needs: the 5 base elements, the 3
+ * biological classes the game works with, the first Paleozoic map (PZ-01)
+ * and one biome (Mar raso).
+ *
+ * Scope note: the roster is deliberately limited to Artropodes, Sinapsideos
+ * and Sauropsideos. "Vertebrados Primitivos" and "Incertos" used to live
+ * here and were dropped — creatures outside those three lineages are out of
+ * scope, so seeding the classes back would just give the prune step in
+ * `creature-numbers.ts` something to delete on every run.
+ *
+ * These used to be sourced from the xlsx but got promoted to
  * code so the repo bootstraps end-to-end without the .xlsx being present
  * on the host — critical for prod, where the fontes/ folder is empty.
  *
@@ -44,12 +52,6 @@ const CLASSES = [
     name: "Sauropsideos",
     biologicalScope: "Repteis, dinossauros, aves",
     status: "Definida",
-  },
-  {
-    code: "CLS-004",
-    name: "Vertebrados Primitivos",
-    biologicalScope: "Peixes, agnatos, anfibios basais",
-    status: "NOME PROVISORIO",
   },
 ] as const;
 

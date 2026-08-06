@@ -9,11 +9,15 @@ import { handleError } from "./shared/middleware/handleError.js";
 import { buildOpenApiDocument } from "./shared/openapi/registry.js";
 import { checkHealth } from "./shared/services/health.js";
 import { abilitiesRouter } from "./modules/abilities/AbilitiesRoutes.js";
+import { abilityStatsRouter } from "./modules/abilityStats/AbilityStatsRoutes.js";
 import { awakeningsRouter } from "./modules/awakenings/AwakeningsRoutes.js";
 import { biomesRouter } from "./modules/biomes/BiomesRoutes.js";
+import { captureRulesRouter } from "./modules/captureRules/CaptureRulesRoutes.js";
 import { changelogRouter } from "./modules/changelog/ChangelogRoutes.js";
 import { contextRouter } from "./modules/context/ContextRoutes.js";
+import { creatureAbilitiesRouter } from "./modules/creatureAbilities/CreatureAbilitiesRoutes.js";
 import { creatureClassesRouter } from "./modules/creatureClasses/CreatureClassesRoutes.js";
+import { creatureStatsRouter } from "./modules/creatureStats/CreatureStatsRoutes.js";
 import { creaturesRouter } from "./modules/creatures/CreaturesRoutes.js";
 import { designDocumentsRouter } from "./modules/designDocuments/DesignDocumentsRoutes.js";
 import { dropsRouter } from "./modules/drops/DropsRoutes.js";
@@ -74,6 +78,11 @@ export function createApp() {
   v1.use("/biomes", biomesRouter);
   v1.use("/map-biomes", mapBiomesRouter);
   v1.use("/abilities", abilitiesRouter);
+  // Numbers layer — everything the Godot build needs to run a battle.
+  v1.use("/creature-stats", creatureStatsRouter);
+  v1.use("/ability-stats", abilityStatsRouter);
+  v1.use("/capture-rules", captureRulesRouter);
+  v1.use("/creature-abilities", creatureAbilitiesRouter);
   v1.use("/items", itemsRouter);
   v1.use("/npcs", npcsRouter);
   v1.use("/missions", missionsRouter);
