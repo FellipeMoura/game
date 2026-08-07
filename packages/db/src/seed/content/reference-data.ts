@@ -1,7 +1,15 @@
 /**
- * Minimum reference data every install needs: the 5 base elements, the 4
- * biological classes, the first Paleozoic map (PZ-01) and one biome
- * (Mar raso). These used to be sourced from the xlsx but got promoted to
+ * Minimum reference data every install needs: the 5 base elements, the 3
+ * biological classes the game works with, the first Paleozoic map (PZ-01)
+ * and one biome (Mar raso).
+ *
+ * Scope note: the roster is deliberately limited to Artropodes, Sinapsideos
+ * and Sauropsideos. "Vertebrados Primitivos" and "Incertos" used to live
+ * here and were dropped — creatures outside those three lineages are out of
+ * scope, so seeding the classes back would just give the prune step in
+ * `creature-numbers.ts` something to delete on every run.
+ *
+ * These used to be sourced from the xlsx but got promoted to
  * code so the repo bootstraps end-to-end without the .xlsx being present
  * on the host — critical for prod, where the fontes/ folder is empty.
  *
@@ -26,30 +34,31 @@ const ELEMENTS = [
   { code: "ELE-005", name: "Eletricidade", notes: "Elemento inicial" },
 ] as const;
 
+/**
+ * Display names are the in-world ones (see the `nomenclatura` document); the
+ * real lineage lives in `biologicalScope` so it stays discoverable. Keeping
+ * these in sync with the API matters: `upsertClass` below overwrites `name`
+ * on rows that already exist, so stale values here would silently revert a
+ * rename on the next bootstrap.
+ */
 const CLASSES = [
   {
     code: "CLS-001",
-    name: "Artropodes",
-    biologicalScope: "Insetos, aracnideos, crustaceos, euripterideos",
+    name: "Loricati",
+    biologicalScope: "Artropodes: insetos, aracnideos, crustaceos, euripterideos",
     status: "Definida",
   },
   {
     code: "CLS-002",
-    name: "Sinapsideos",
-    biologicalScope: "Linhagem que leva aos mamiferos",
+    name: "Theria",
+    biologicalScope: "Sinapsideos: linhagem que leva aos mamiferos",
     status: "Definida",
   },
   {
     code: "CLS-003",
-    name: "Sauropsideos",
-    biologicalScope: "Repteis, dinossauros, aves",
+    name: "Draconis",
+    biologicalScope: "Sauropsideos: repteis, dinossauros, aves",
     status: "Definida",
-  },
-  {
-    code: "CLS-004",
-    name: "Vertebrados Primitivos",
-    biologicalScope: "Peixes, agnatos, anfibios basais",
-    status: "NOME PROVISORIO",
   },
 ] as const;
 

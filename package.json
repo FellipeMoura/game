@@ -21,7 +21,8 @@
     "db:studio": "pnpm --filter @bestiary/db run studio",
     "publish:models": "node --env-file=.env scripts/publish-models.mjs",
     "db:reset": "pnpm db:create && pnpm db:generate && pnpm db:migrate && pnpm db:seed",
-    "openapi:generate": "pnpm --filter @bestiary/web run openapi:generate"
+    "openapi:generate": "pnpm --filter @bestiary/web run openapi:generate",
+    "game:export": "node scripts/export-game-data.mjs"
   },
   "devDependencies": {
     "tsx": "^4.19.2",

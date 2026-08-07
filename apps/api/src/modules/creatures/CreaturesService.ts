@@ -139,6 +139,41 @@ export const creaturesService = {
     });
   },
 
+  /**
+   * Removes a creature and everything hanging off it — awakening, stats,
+   * capture rule, ability links and drops all cascade. Used when a species
+   * falls out of scope, which is a design decision, not a data fix, so it
+   * carries the usual reason/impact and lands in the changelog.
+   *
+   * The changelog row is written before the DELETE so it keeps the entityId
+   * reference; `changelog.entityId` is deliberately not a foreign key, so
+   * the history of a removed creature survives its removal.
+   */
+  async remove(
+    code: string,
+    body: { reason: string; impact: string },
+  ): Promise<{ code: string; version: string }> {
+    return db.transaction(async (tx) => {
+      const existing = await tx
+        .select({ id: schema.creatures.id, originalName: schema.creatures.originalName })
+        .from(schema.creatures)
+        .where(eq(schema.creatures.code, code))
+        .limit(1);
+      const row = existing[0];
+      if (!row) throw new AppError(`Creature '${code}' not found`, 404);
+
+      const version = await recordChange(tx, {
+        change: `Creature ${code} deleted (${row.originalName})`,
+        reason: body.reason,
+        impact: body.impact,
+        entity: "creatures",
+        entityId: row.id,
+      });
+      await tx.delete(schema.creatures).where(eq(schema.creatures.code, code));
+      return { code, version };
+    });
+  },
+
   async batchCreate(
     body: BatchCreateCreaturesBody,
   ): Promise<{ codes: string[]; version: string }> {

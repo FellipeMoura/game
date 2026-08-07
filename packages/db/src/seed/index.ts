@@ -8,8 +8,21 @@ import { noteDevLog, seedBible, seedRoadmap } from "./docx";
 import { seedXlsx } from "./xlsx";
 
 /**
- * Populates the database from the four original files in ./fontes/. The
- * seed is idempotent — rerunning it does not duplicate rows.
+ * FROZEN — bootstrap only. Do not add new content batches here.
+ *
+ * This script existed to get the corpus off the original .docx/.xlsx before
+ * the first deploy. That job is done. Since then the API is the write path:
+ * every change carries `reason`/`impact` and lands in the changelog, which
+ * is the audit trail. Content committed as TypeScript has neither.
+ *
+ * Where things go now:
+ *   - new data or corrections  → API (`POST`/`PATCH`/`DELETE`, batch endpoints
+ *     for bulk), which versions the change automatically
+ *   - schema changes           → drizzle migrations, as always
+ *   - hydrating a dev machine  → `pnpm db:pull`, which snapshots prod
+ *
+ * What remains below is kept so a fresh clone can still bootstrap offline.
+ * It is idempotent — rerunning it does not duplicate rows.
  *
  * IMPORTANT: this script writes directly through the ORM and does NOT go
  * through the API's terminology validator. The historical Development Log

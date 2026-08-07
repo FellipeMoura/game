@@ -4,7 +4,11 @@ Contexto essencial para trabalhar neste repositório. Leitura obrigatória antes
 
 ## O que é isto
 
-App web de catálogo/documentação de um jogo 2D de coleção de criaturas com tema paleontológico. **Este repositório NÃO é o jogo** — o jogo em Godot vive em outro repositório e não deve ser tocado a partir daqui.
+App web de catálogo/documentação de um jogo 3D de coleção de criaturas com tema paleontológico. **Este repositório NÃO é o jogo** — o jogo em Godot vive em um repositório irmão em `code/games/` e não deve ser tocado a partir daqui. A ponte entre os dois é `pnpm game:export`, que escreve um bundle JSON versionado lá.
+
+O jogo chama-se **Avyron**: Godot, câmera isométrica ortográfica travada em 30°/45°, exploração em tempo real e **combate por turnos** (1v1 com troca livre, in-world, sem arena separada).
+
+**Nomenclatura in-world.** As classes são Loricati, Theria e Draconis; as eras são Aetheris, Titanor e Novaterra. Esses são nomes de *exibição* — os códigos (`CLS-*`) e os enums do banco (`paleozoic`, `mesozoic`, `cenozoic`) seguem inalterados. O escopo biológico real de cada classe vive em `creature_classes.biologicalScope`, e as eras traduzem por `ERA_LABEL` em `labels.ts`. Ver documento `nomenclatura`.
 
 **Dois públicos com necessidades opostas:**
 - **Humanos leem** o bestiário, mapas, lore e histórico na UI. Frontend é 100% somente-leitura.
@@ -28,7 +32,8 @@ Monorepo pnpm workspaces:
 
 - **`apps/api`** — Node + TypeScript + Express + Drizzle + Zod + zod-to-openapi + PostgreSQL
 - **`apps/web`** — Vite + React 19 + React Router 7 + TanStack Query + Tailwind + openapi-fetch
-- **`packages/db`** — schemas Drizzle, migrations, seed (xlsx + docx + lotes curados em `seed/content/`)
+- **`packages/db`** — schemas Drizzle e migrations. O `seed/` está **congelado** (ver abaixo).
+- **`scripts/export-game-data.mjs`** — export build-time do bundle para o repo Godot
 
 **Não usamos:** Docker em prod, Redis, BullMQ, Socket.io, MinIO, RLS multi-tenant, JWT, OAuth, migrations com Alembic-like, rate limiting. Padrão inspirado no `c:\code\saas\frostie` mas enxuto.
 
@@ -42,6 +47,8 @@ Estas quatro regras não têm exceção. Se algo parecer conflitar com elas, ela
 2. **Terminologia travada.** Termo oficial: **"Despertar Ancestral"** (transformação temporária, retorno à forma base). Os termos **"Evolução"** e **"Forma Ancestral"** estão descontinuados. Middleware `rejectForbiddenTerms` scaneia todo body de escrita e retorna `422` se achar essas expressões em qualquer campo de texto, apontando o campo ofensor. Ver `apps/api/src/shared/services/terminology.ts`.
 3. **Toda escrita gera changelog na mesma transação.** Campos `reason` e `impact` são obrigatórios em todo body de POST/PATCH. O servidor grava a entrada de changelog e incrementa a versão (formato `0.NN`) sozinho — agente **nunca** escolhe a versão. Ver `apps/api/src/shared/services/changelog.ts`.
 4. **Economia de tokens é requisito funcional.** Quem consome a API é LLM pagando por token. `POST` responde só `{"code","version"}`. `GET` aceita `?fields=code,name`. Erros nomeiam campo e valores válidos: `"classCode: 'CLS-999' does not exist"`, não `"invalid"`.
+
+5. **O seed está congelado.** Passo a passo de inserção de dados: [docs/DATA_WORKFLOW.md](docs/DATA_WORKFLOW.md). `packages/db/src/seed/` existiu para tirar o corpus dos `.docx`/`.xlsx` antes do primeiro deploy. Esse trabalho acabou. **Nunca adicionar lote de conteúdo novo lá.** Conteúdo entra pela API — que gera changelog e versão sozinha. Conteúdo commitado como TypeScript não tem nem um nem outro. Para hidratar uma máquina de dev, `pnpm db:pull`.
 
 ## Naming (aprendido na marra)
 
@@ -60,9 +67,11 @@ Estas quatro regras não têm exceção. Se algo parecer conflitar com elas, ela
 - `{Feature}Controller.ts` — thin, delega para Service, `satisfies RequestHandler`
 - `{Feature}Routes.ts` — Express router + `registerPath` no `registry`
 
-**Dois helpers reduzem boilerplate** em `apps/api/src/shared/services/`:
+**Quatro helpers reduzem boilerplate** em `apps/api/src/shared/services/`:
 - `crudFactory.ts` — gera list/get/create/update/batchCreate para tabelas SEM FKs (elements, biomes, items, creature-classes)
 - `crudRoutes.ts` — gera as 5 rotas padrão + registerPath OpenAPI a partir dos schemas
+- `childUpsertFactory.ts` — para tabelas 1:1 filhas de um pai com `code`, endereçadas pelo código do pai e escritas por upsert (creature-stats, ability-stats, capture-rules)
+- `childUpsertRoutes.ts` — as 4 rotas desse padrão: list, get-by-parent-code, upsert, batch
 
 **Quando NÃO usar factory:**
 - Recursos com FK (creatures, awakenings, missions, npcs, abilities, drops, junctions) — Service manual porque precisa resolver códigos para ids dentro da transação via `resolveCodeInTx` (`apps/api/src/shared/services/fkResolver.ts`)
@@ -75,12 +84,34 @@ Estas quatro regras não têm exceção. Se algo parecer conflitar com elas, ela
 
 ## Regras de domínio (não estão no código)
 
-- **Classes NÃO influenciam combate.** Hard rule do Changelog 0.01. Nunca adicionar campo de dano/multiplicador em `creature_classes`.
-- **Elementos SIM.** A tabela `elemental_advantages` guarda (attacker, defender, multiplier). Simetria não é enforcada.
-- **Criatura ↔ Despertar é 1-para-1.** Tabela `awakenings` tem `UNIQUE(creature_id)`. Ausência de linha = criatura sem despertar.
+- **Elenco fechado em 3 classes:** Loricati (CLS-001, artrópodes), Theria (CLS-002, sinapsídeos), Draconis (CLS-003, sauropsídeos). Criatura que não cabe em nenhuma delas não entra no jogo. "Vertebrados Primitivos" e "Incertos" foram removidas.
+- **Classes NÃO influenciam combate** nem captura. Hard rule do Changelog 0.01. Nunca adicionar campo de dano/multiplicador em `creature_classes`.
+- **Elementos SIM, em anel fechado:** Água → Fogo → Natureza → Terra → Gelo → Eletricidade → Água (seta = vence). Vantagem 2.0, desvantagem 0.5, resto 1.0 por omissão. Cada elemento vence exatamente um e perde para exatamente um — a simetria é o ponto, não um acidente.
+- **Criatura ↔ Despertar é 1-para-1.** Tabela `awakenings` tem `UNIQUE(creature_id)`. Ausência de linha = criatura sem despertar. Hoje a cobertura é 26/26.
 - **3 eras × 3 mapas × ~20 criaturas inéditas** — escopo total do jogo. Reaparições em mapas posteriores não contam para o limite.
-- **Regra 70/30** do Despertar Ancestral (roadmap): 70% chance de "reforço" (mesma espécie amplificada), 30% de "troca" (vira outra espécie relacionada).
-- **Silhueta é critério de corte** — cada criatura deve ser reconhecível pela sombra.
+- **Regra 70/30** do Despertar Ancestral: ~70% "reforço" (mesma espécie amplificada, multiplicador 1.5), ~30% "troca" (vira outra espécie relacionada, multiplicador 1.7).
+- **Silhueta é critério de corte** — cada criatura deve ser reconhecível pela sombra, projetada em 30°/45°.
+
+## Camada de números (o que o jogo consome)
+
+Cinco tabelas separam o catálogo editorial dos valores que o jogo executa.
+
+- `combat_rules` — **singleton** (`id = 1`, garantido por CHECK). As constantes de tuning: escala de dano, variância, taxas de enchimento da carga, limites de captura, teto de nível. `GET /combat-rules` e `PATCH /combat-rules` — sem código, sem lista, sem POST. **É aqui que se balanceia o jogo.**
+- `creature_stats` — 1:1 com criatura. `baseHp`, `baseAttack`, `baseDefense`, `baseSpeed`, `baseCharge`, `growthRate`. Valor efetivo: `floor(base * (1 + growthRate * (nível - 1)))`.
+- `ability_stats` — 1:1 com habilidade. `power` 0 = movimento de status; `effectCode` é o switch que o Godot roda.
+- `capture_rules` — 1:1 com criatura. `catchRate` 1–255.
+- `creature_abilities` — junção: qual criatura sabe qual golpe, em que nível.
+
+As quatro últimas usam upsert — re-POST para mudar, sem PATCH. `combat_rules` é a exceção: sendo singleton, PATCH é a operação natural.
+
+**Dano:** `floor((power * attack / defense) * damageConstant * multElemental * random(varianceMin, varianceMax))`, com piso em `damageMinimum`.
+**Carga do Despertar:** enche com dano recebido (×`chargeTakenMultiplier`) e causado (×`chargeDealtMultiplier`), escalado por `baseCharge / chargeNeutralCharge`. Cheia em `chargeMax`, dura 3 turnos, zera na reversão. Receber enche mais que causar — deliberado, para o Despertar ser virada de jogo e não amplificador de vitória.
+
+Nenhuma dessas constantes está escrita em código. O jogo lê o bloco `rules` do bundle, e o bundle lê `combat_rules`. Mudar balanceamento é um PATCH versionado, não um commit.
+
+**A contagem de tabelas não é regra.** Cinco é o que o jogo precisa hoje; se um sistema novo pedir mais, crie.
+
+Especificação legível para humanos: documentos `combate`, `carga-e-despertar` e `captura` na API.
 
 ## Frontend visual
 
@@ -98,15 +129,22 @@ Direção: **arquivo científico dark editorial**. Não é padrão frostie/shadc
 ```powershell
 pnpm dev                  # sobe api + web em paralelo
 pnpm typecheck            # três workspaces
-pnpm db:seed              # idempotente; roda xlsx + docx + lotes curados
+pnpm db:pull              # hidrata o dev com um snapshot de prod — o caminho normal
 pnpm db:studio            # drizzle-kit GUI para inspecionar
 pnpm openapi:generate     # regera schema.d.ts do web a partir da API rodando
-pnpm db:reset             # create + generate + migrate + seed (setup do zero)
+pnpm game:export          # gera o bundle JSON no repo Godot irmão
+pnpm db:seed              # CONGELADO — bootstrap offline, não usar para conteúdo novo
+pnpm db:reset             # create + generate + migrate + seed (setup do zero, sem dados de prod)
 ```
+
+`pnpm game:export` aceita `--from <url>` (default API local) e `--out <path>` (default `../godot`). Ele **falha** se alguma criatura estiver sem stats, sem regra de captura ou sem golpes — em vez de gerar um bundle que quebra o jogo em runtime.
 
 ## Coisas para NÃO fazer
 
 - Não adicionar campo de combate em `creature_classes`.
+- Não adicionar lote de conteúdo em `packages/db/src/seed/`. Está congelado — conteúdo entra pela API.
+- Não criar criatura fora das três classes. Se não é artrópode, sinapsídeo ou sauropsídeo, está fora do escopo.
+- Não citar os termos descontinuados em documento, nem para explicar que estão descontinuados. Foi exatamente assim que o documento `despertar-ancestral` se corrompeu: o replace automático do import reescreveu as citações e produziu uma frase dizendo que o termo oficial estava descontinuado. A lista vive em `terminology.ts`, que sabe a diferença entre usar um termo e falar sobre ele.
 - Não usar "Evolução" ou "Forma Ancestral" em nenhum lugar — código, comentário, exemplo, mock, teste. Se aparecer em texto vindo de fora (tabela do usuário, docx importado), fazer replace automático `Evolução → Despertar`, `Forma Ancestral → Despertar Ancestral` no ato do import.
 - Não escrever changelog manualmente pelo lado do agente/frontend. Sempre `recordChange(tx, ...)` dentro da transação do write.
 - Não devolver o objeto criado inteiro em `POST` — só `{code, version}`. O agente já enviou; devolver duplica tokens.
@@ -118,12 +156,15 @@ pnpm db:reset             # create + generate + migrate + seed (setup do zero)
 ## Onde procurar informação
 
 - **README.md** — como clonar e rodar
-- **`packages/db/src/schema/`** — modelo de dados (15 tabelas + junctions + enums)
-- **`apps/api/src/shared/services/`** — as decisões arquiteturais principais (terminology, changelog, crudFactory, crudRoutes, fkResolver, query)
+- **docs/DATA_WORKFLOW.md** — como inserir e corrigir dados via API (leitura obrigatória antes de escrever)
+- **`packages/db/src/schema/`** — modelo de dados (19 tabelas + junctions + enums)
+- **`packages/db/src/schema/stats.ts`** — a camada de números, com as fórmulas documentadas
+- **`apps/api/src/shared/services/`** — as decisões arquiteturais principais (terminology, changelog, crudFactory, crudRoutes, childUpsertFactory, childUpsertRoutes, fkResolver, query)
 - **`apps/api/src/modules/elements/`** — módulo de referência para o padrão sem FK
 - **`apps/api/src/modules/creatures/`** — módulo de referência para o padrão com múltiplas FKs
 - **`apps/api/src/modules/drops/`** — padrão upsert para junctions
-- **`packages/db/src/seed/content/paleozoic-batch-1.ts`** — como popular lotes curados de conteúdo
+- **`apps/api/src/modules/creatureStats/`** — padrão filho-1:1-por-código-do-pai
+- **`scripts/export-game-data.mjs`** — o contrato de dados com o jogo
 - **`apps/web/src/routes/CreatureDetail.tsx`** — a única tela com peso visual; referência da direção editorial
 - **`apps/web/src/lib/labels.ts`** — todas as traduções enum → português
 - **`fontes/README.md`** — o que vai na pasta ignorada
