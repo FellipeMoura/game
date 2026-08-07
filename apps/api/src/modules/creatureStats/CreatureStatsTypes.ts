@@ -11,6 +11,8 @@ export const CreatureStatSchema = z
     baseSpeed: z.number().int(),
     baseCharge: z.number().int(),
     growthRate: z.number(),
+    sizeMeters: z.number(),
+    realSizeMeters: z.number().nullable(),
     awakeningMultiplier: z.number(),
     awakeningDurationTurns: z.number().int(),
     notes: z.string().nullable(),
@@ -21,14 +23,16 @@ export const CreatureStatSchema = z
 
 export const CREATURE_STAT_FIELDS = [
   "id", "creatureId", "baseHp", "baseAttack", "baseDefense", "baseSpeed",
-  "baseCharge", "growthRate", "awakeningMultiplier", "awakeningDurationTurns",
+  "baseCharge", "growthRate", "sizeMeters", "realSizeMeters",
+  "awakeningMultiplier", "awakeningDurationTurns",
   "notes", "createdAt", "updatedAt",
 ] as const;
 
 /** Columns an agent may set. Excludes id / creatureId / timestamps. */
 export const CREATURE_STAT_PAYLOAD = [
   "baseHp", "baseAttack", "baseDefense", "baseSpeed", "baseCharge",
-  "growthRate", "awakeningMultiplier", "awakeningDurationTurns", "notes",
+  "growthRate", "sizeMeters", "realSizeMeters",
+  "awakeningMultiplier", "awakeningDurationTurns", "notes",
 ] as const;
 
 export const ListCreatureStatsQuerySchema = paginationSchema.extend({
@@ -53,6 +57,15 @@ const coreSchema = z.object({
   growthRate: z.number().min(0.001).max(0.2).optional().openapi({
     description: "valor(nível) = floor(base * (1 + growthRate * (nível - 1))). Típico 0.02–0.05.",
     example: 0.03,
+  }),
+  sizeMeters: z.number().min(0.9).max(4.5).optional().openapi({
+    description:
+      "Maior dimensão em unidades Godot, na escala dramatizada. Piso 0.9 (metade do jogador), teto 4.5 (2,5x). Ver o documento `escala-das-criaturas`.",
+    example: 2.69,
+  }),
+  realSizeMeters: z.number().gt(0).max(100).nullish().openapi({
+    description: "Tamanho paleontológico real em metros. Editorial — o jogo não lê.",
+    example: 2.5,
   }),
   awakeningMultiplier: z.number().min(1).max(3).optional().openapi({ example: 1.5 }),
   awakeningDurationTurns: z.number().int().min(1).max(10).optional().openapi({ example: 3 }),

@@ -47,6 +47,25 @@ export const creatureStats = pgTable(
     baseSpeed: integer("base_speed").notNull(),
     baseCharge: integer("base_charge").notNull(),
     growthRate: real("growth_rate").notNull().default(0.03),
+
+    /**
+     * Maior dimensão da criatura em unidades Godot (1 unidade = 1 metro),
+     * já na **escala dramatizada** que o jogo usa — não o tamanho real.
+     *
+     * O jogador tem 1.8 m. O piso é 0.9 (metade dele) e o teto 4.5 (duas
+     * vezes e meia). Proporção real entre as espécies seria ilegível: um
+     * trilobita de 10 cm ao lado de um Cotylorhynchus de 6 m ficaria
+     * invisível, e um saurópode de 35 m não caberia no enquadramento
+     * isométrico. A curva de compressão está no documento `escala-das-criaturas`.
+     */
+    sizeMeters: real("size_meters").notNull().default(1.8),
+
+    /**
+     * Tamanho paleontológico real, em metros. Editorial — o jogo não lê.
+     * Serve para a ficha do bestiário e para recalcular `sizeMeters` se a
+     * curva de compressão mudar, sem precisar pesquisar tudo de novo.
+     */
+    realSizeMeters: real("real_size_meters"),
     /** Multiplier applied to attack and defense while the Despertar is active. */
     awakeningMultiplier: real("awakening_multiplier").notNull().default(1.5),
     awakeningDurationTurns: integer("awakening_duration_turns").notNull().default(3),
@@ -60,6 +79,21 @@ export const creatureStats = pgTable(
     speedRange: check("creature_stats_speed_range", sql`${t.baseSpeed} > 0 AND ${t.baseSpeed} <= 999`),
     chargeRange: check("creature_stats_charge_range", sql`${t.baseCharge} > 0 AND ${t.baseCharge} <= 999`),
     growthRange: check("creature_stats_growth_range", sql`${t.growthRate} > 0 AND ${t.growthRate} <= 0.2`),
+    /**
+     * Os literais são convertidos para `real` de propósito. A coluna é float4
+     * e o literal cru seria float8: 0.9 armazenado como float4 vale
+     * 0.89999997615814208984375, que é MENOR que o 0.9 em dupla precisão — e
+     * o CHECK rejeitaria o próprio valor de piso. Comparar nos dois lados no
+     * mesmo tipo elimina isso.
+     */
+    sizeRange: check(
+      "creature_stats_size_range",
+      sql`${t.sizeMeters} >= 0.9::real AND ${t.sizeMeters} <= 4.5::real`,
+    ),
+    realSizeRange: check(
+      "creature_stats_real_size_range",
+      sql`${t.realSizeMeters} IS NULL OR (${t.realSizeMeters} > 0 AND ${t.realSizeMeters} <= 100)`,
+    ),
     durationRange: check(
       "creature_stats_duration_range",
       sql`${t.awakeningDurationTurns} >= 1 AND ${t.awakeningDurationTurns} <= 10`,

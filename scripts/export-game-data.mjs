@@ -182,6 +182,14 @@ const outCreatures = creatures.map((c) => {
   if (!s) problems.push(`creature ${c.code} (${c.originalName}) has no creature_stats row`);
   if (!cap) problems.push(`creature ${c.code} (${c.originalName}) has no capture_rules row`);
   if (moves.length === 0) problems.push(`creature ${c.code} (${c.originalName}) knows no abilities`);
+  // Sem tamanho o jogo não tem como instanciar a criatura. Se a origem for um
+  // deploy antigo, o campo chega `undefined`, o JSON.stringify o descarta e o
+  // bundle sairia silenciosamente sem escala — falhar aqui é o ponto.
+  if (s && typeof s.sizeMeters !== "number") {
+    problems.push(
+      `creature ${c.code} (${c.originalName}) has no sizeMeters — is the source running an older deploy?`,
+    );
+  }
 
   return {
     code: c.code,
@@ -202,6 +210,9 @@ const outCreatures = creatures.map((c) => {
           speed: s.baseSpeed,
           charge: s.baseCharge,
           growthRate: s.growthRate,
+          // Escala dramatizada, em unidades Godot. O tamanho real fica de
+          // fora do bundle: é editorial, e o jogo não tem o que fazer com ele.
+          sizeMeters: s.sizeMeters,
           awakeningMultiplier: s.awakeningMultiplier,
           awakeningDurationTurns: s.awakeningDurationTurns,
         }
