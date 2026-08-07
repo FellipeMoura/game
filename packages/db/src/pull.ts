@@ -57,6 +57,7 @@ const TABLES = [
   { name: "awakenings", endpoint: "awakenings" },
   { name: "missions", endpoint: "missions" },
   { name: "drops", endpoint: "drops" },
+  { name: "mining_rates", endpoint: "mining-rates" },
 ] as const;
 
 type Row = Record<string, unknown>;
