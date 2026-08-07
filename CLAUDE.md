@@ -6,7 +6,9 @@ Contexto essencial para trabalhar neste repositório. Leitura obrigatória antes
 
 App web de catálogo/documentação de um jogo 3D de coleção de criaturas com tema paleontológico. **Este repositório NÃO é o jogo** — o jogo em Godot vive em um repositório irmão em `code/games/` e não deve ser tocado a partir daqui. A ponte entre os dois é `pnpm game:export`, que escreve um bundle JSON versionado lá.
 
-O jogo: Godot, câmera isométrica ortográfica travada em 30°/45°, exploração em tempo real e **combate por turnos** (1v1 com troca livre, in-world, sem arena separada).
+O jogo chama-se **Avyron**: Godot, câmera isométrica ortográfica travada em 30°/45°, exploração em tempo real e **combate por turnos** (1v1 com troca livre, in-world, sem arena separada).
+
+**Nomenclatura in-world.** As classes são Loricati, Theria e Draconis; as eras são Aetheris, Titanor e Novaterra. Esses são nomes de *exibição* — os códigos (`CLS-*`) e os enums do banco (`paleozoic`, `mesozoic`, `cenozoic`) seguem inalterados. O escopo biológico real de cada classe vive em `creature_classes.biologicalScope`, e as eras traduzem por `ERA_LABEL` em `labels.ts`. Ver documento `nomenclatura`.
 
 **Dois públicos com necessidades opostas:**
 - **Humanos leem** o bestiário, mapas, lore e histórico na UI. Frontend é 100% somente-leitura.
@@ -46,7 +48,7 @@ Estas quatro regras não têm exceção. Se algo parecer conflitar com elas, ela
 3. **Toda escrita gera changelog na mesma transação.** Campos `reason` e `impact` são obrigatórios em todo body de POST/PATCH. O servidor grava a entrada de changelog e incrementa a versão (formato `0.NN`) sozinho — agente **nunca** escolhe a versão. Ver `apps/api/src/shared/services/changelog.ts`.
 4. **Economia de tokens é requisito funcional.** Quem consome a API é LLM pagando por token. `POST` responde só `{"code","version"}`. `GET` aceita `?fields=code,name`. Erros nomeiam campo e valores válidos: `"classCode: 'CLS-999' does not exist"`, não `"invalid"`.
 
-5. **O seed está congelado.** `packages/db/src/seed/` existiu para tirar o corpus dos `.docx`/`.xlsx` antes do primeiro deploy. Esse trabalho acabou. **Nunca adicionar lote de conteúdo novo lá.** Conteúdo entra pela API — que gera changelog e versão sozinha. Conteúdo commitado como TypeScript não tem nem um nem outro. Para hidratar uma máquina de dev, `pnpm db:pull`.
+5. **O seed está congelado.** Passo a passo de inserção de dados: [docs/DATA_WORKFLOW.md](docs/DATA_WORKFLOW.md). `packages/db/src/seed/` existiu para tirar o corpus dos `.docx`/`.xlsx` antes do primeiro deploy. Esse trabalho acabou. **Nunca adicionar lote de conteúdo novo lá.** Conteúdo entra pela API — que gera changelog e versão sozinha. Conteúdo commitado como TypeScript não tem nem um nem outro. Para hidratar uma máquina de dev, `pnpm db:pull`.
 
 ## Naming (aprendido na marra)
 
@@ -82,7 +84,7 @@ Estas quatro regras não têm exceção. Se algo parecer conflitar com elas, ela
 
 ## Regras de domínio (não estão no código)
 
-- **Elenco fechado em 3 classes:** Artrópodes (CLS-001), Sinapsídeos (CLS-002), Sauropsídeos (CLS-003). Criatura que não cabe em nenhuma delas não entra no jogo. "Vertebrados Primitivos" e "Incertos" foram removidas.
+- **Elenco fechado em 3 classes:** Loricati (CLS-001, artrópodes), Theria (CLS-002, sinapsídeos), Draconis (CLS-003, sauropsídeos). Criatura que não cabe em nenhuma delas não entra no jogo. "Vertebrados Primitivos" e "Incertos" foram removidas.
 - **Classes NÃO influenciam combate** nem captura. Hard rule do Changelog 0.01. Nunca adicionar campo de dano/multiplicador em `creature_classes`.
 - **Elementos SIM, em anel fechado:** Água → Fogo → Natureza → Terra → Gelo → Eletricidade → Água (seta = vence). Vantagem 2.0, desvantagem 0.5, resto 1.0 por omissão. Cada elemento vence exatamente um e perde para exatamente um — a simetria é o ponto, não um acidente.
 - **Criatura ↔ Despertar é 1-para-1.** Tabela `awakenings` tem `UNIQUE(creature_id)`. Ausência de linha = criatura sem despertar. Hoje a cobertura é 26/26.
@@ -92,15 +94,22 @@ Estas quatro regras não têm exceção. Se algo parecer conflitar com elas, ela
 
 ## Camada de números (o que o jogo consome)
 
-Quatro tabelas separam o catálogo editorial dos valores que o jogo executa. Todas usam upsert — re-POST para mudar, sem PATCH.
+Cinco tabelas separam o catálogo editorial dos valores que o jogo executa.
 
+- `combat_rules` — **singleton** (`id = 1`, garantido por CHECK). As constantes de tuning: escala de dano, variância, taxas de enchimento da carga, limites de captura, teto de nível. `GET /combat-rules` e `PATCH /combat-rules` — sem código, sem lista, sem POST. **É aqui que se balanceia o jogo.**
 - `creature_stats` — 1:1 com criatura. `baseHp`, `baseAttack`, `baseDefense`, `baseSpeed`, `baseCharge`, `growthRate`. Valor efetivo: `floor(base * (1 + growthRate * (nível - 1)))`.
 - `ability_stats` — 1:1 com habilidade. `power` 0 = movimento de status; `effectCode` é o switch que o Godot roda.
 - `capture_rules` — 1:1 com criatura. `catchRate` 1–255.
 - `creature_abilities` — junção: qual criatura sabe qual golpe, em que nível.
 
-**Dano:** `floor((power * attack / defense) * 0.4 * multElemental * random(0.90, 1.10))`, mínimo 1.
-**Carga do Despertar:** enche com dano recebido (×1.0) e causado (×0.5), escalado por `baseCharge / 50`. Cheia em 100, dura 3 turnos, zera na reversão. Receber enche o dobro de causar — deliberado, para o Despertar ser virada de jogo e não amplificador de vitória.
+As quatro últimas usam upsert — re-POST para mudar, sem PATCH. `combat_rules` é a exceção: sendo singleton, PATCH é a operação natural.
+
+**Dano:** `floor((power * attack / defense) * damageConstant * multElemental * random(varianceMin, varianceMax))`, com piso em `damageMinimum`.
+**Carga do Despertar:** enche com dano recebido (×`chargeTakenMultiplier`) e causado (×`chargeDealtMultiplier`), escalado por `baseCharge / chargeNeutralCharge`. Cheia em `chargeMax`, dura 3 turnos, zera na reversão. Receber enche mais que causar — deliberado, para o Despertar ser virada de jogo e não amplificador de vitória.
+
+Nenhuma dessas constantes está escrita em código. O jogo lê o bloco `rules` do bundle, e o bundle lê `combat_rules`. Mudar balanceamento é um PATCH versionado, não um commit.
+
+**A contagem de tabelas não é regra.** Cinco é o que o jogo precisa hoje; se um sistema novo pedir mais, crie.
 
 Especificação legível para humanos: documentos `combate`, `carga-e-despertar` e `captura` na API.
 
@@ -147,6 +156,7 @@ pnpm db:reset             # create + generate + migrate + seed (setup do zero, s
 ## Onde procurar informação
 
 - **README.md** — como clonar e rodar
+- **docs/DATA_WORKFLOW.md** — como inserir e corrigir dados via API (leitura obrigatória antes de escrever)
 - **`packages/db/src/schema/`** — modelo de dados (19 tabelas + junctions + enums)
 - **`packages/db/src/schema/stats.ts`** — a camada de números, com as fórmulas documentadas
 - **`apps/api/src/shared/services/`** — as decisões arquiteturais principais (terminology, changelog, crudFactory, crudRoutes, childUpsertFactory, childUpsertRoutes, fkResolver, query)

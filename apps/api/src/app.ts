@@ -14,6 +14,7 @@ import { awakeningsRouter } from "./modules/awakenings/AwakeningsRoutes.js";
 import { biomesRouter } from "./modules/biomes/BiomesRoutes.js";
 import { captureRulesRouter } from "./modules/captureRules/CaptureRulesRoutes.js";
 import { changelogRouter } from "./modules/changelog/ChangelogRoutes.js";
+import { combatRulesRouter } from "./modules/combatRules/CombatRulesRoutes.js";
 import { contextRouter } from "./modules/context/ContextRoutes.js";
 import { creatureAbilitiesRouter } from "./modules/creatureAbilities/CreatureAbilitiesRoutes.js";
 import { creatureClassesRouter } from "./modules/creatureClasses/CreatureClassesRoutes.js";
@@ -79,6 +80,7 @@ export function createApp() {
   v1.use("/map-biomes", mapBiomesRouter);
   v1.use("/abilities", abilitiesRouter);
   // Numbers layer — everything the Godot build needs to run a battle.
+  v1.use("/combat-rules", combatRulesRouter);
   v1.use("/creature-stats", creatureStatsRouter);
   v1.use("/ability-stats", abilityStatsRouter);
   v1.use("/capture-rules", captureRulesRouter);

@@ -103,7 +103,8 @@ export async function buildContextMarkdown(): Promise<string> {
 
   lines.push("## Domain invariants");
   lines.push("- **The game is 3D**, Godot, locked isometric orthographic camera at 30° pitch / 45° yaw. Exploration is real-time; **combat is turn-based**, 1v1 with free switching, fought in-world. See documents `combate` and `camera-e-perspectiva`.");
-  lines.push("- **Roster is closed at three lineages:** Artropodes (CLS-001), Sinapsideos (CLS-002), Sauropsideos (CLS-003). Creatures outside them are out of scope.");
+  lines.push("- **The game is called Avyron.** Eras carry in-world names: Aetheris (paleozoic), Titanor (mesozoic), Novaterra (cenozoic). The database enum stays English — only labels changed. See document `nomenclatura`.");
+  lines.push("- **Roster is closed at three lineages:** Loricati (CLS-001, arthropods), Theria (CLS-002, synapsids), Draconis (CLS-003, sauropsids). Creatures outside them are out of scope.");
   lines.push("- **Creature ↔ Awakening is 1:1.** `POST /awakenings` for a creature that already has one → 409.");
   lines.push("- **Classes do NOT influence combat** (Changelog 0.01). No damage / multiplier / stat fields on `creature_classes`. They also do not affect capture.");
   lines.push("- **Elements DO influence combat**, as a closed ring: Agua → Fogo → Natureza → Terra → Gelo → Eletricidade → Agua (arrow means \"beats\"). Advantage 2.0, disadvantage 0.5, everything else 1.0 by omission.");
@@ -111,7 +112,9 @@ export async function buildContextMarkdown(): Promise<string> {
   lines.push("");
 
   lines.push("## Numbers layer");
-  lines.push("_The catalog tables stay descriptive; everything the Godot build needs to run a battle lives here. All four use upsert semantics — re-POST to change a value, no PATCH._");
+  lines.push("_The catalog tables stay descriptive; everything the Godot build needs to run a battle lives here._");
+  lines.push("- `combat-rules` — **singleton**, the tuning constants (damage scale, charge fill rates, capture bounds, level cap). `GET /combat-rules` and `PATCH /combat-rules`; no code, no list, no POST. This is where balance is tuned.");
+  lines.push("_The four below use upsert semantics — re-POST to change a value, no PATCH._");
   lines.push("- `creature-stats` — 1:1 with a creature, addressed by creature code. Five base stats (`baseHp`, `baseAttack`, `baseDefense`, `baseSpeed`, `baseCharge`) plus `growthRate`.");
   lines.push("  Effective value: `floor(base * (1 + growthRate * (level - 1)))`.");
   lines.push("- `ability-stats` — 1:1 with an ability. `power` 0 means a status move; `effectCode` is the switch the battle system runs on.");
@@ -178,6 +181,7 @@ export async function buildContextMarkdown(): Promise<string> {
     "biomes",
     "map-biomes",
     "abilities",
+    "combat-rules",
     "creature-stats",
     "ability-stats",
     "capture-rules",

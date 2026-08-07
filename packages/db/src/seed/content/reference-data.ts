@@ -34,23 +34,30 @@ const ELEMENTS = [
   { code: "ELE-005", name: "Eletricidade", notes: "Elemento inicial" },
 ] as const;
 
+/**
+ * Display names are the in-world ones (see the `nomenclatura` document); the
+ * real lineage lives in `biologicalScope` so it stays discoverable. Keeping
+ * these in sync with the API matters: `upsertClass` below overwrites `name`
+ * on rows that already exist, so stale values here would silently revert a
+ * rename on the next bootstrap.
+ */
 const CLASSES = [
   {
     code: "CLS-001",
-    name: "Artropodes",
-    biologicalScope: "Insetos, aracnideos, crustaceos, euripterideos",
+    name: "Loricati",
+    biologicalScope: "Artropodes: insetos, aracnideos, crustaceos, euripterideos",
     status: "Definida",
   },
   {
     code: "CLS-002",
-    name: "Sinapsideos",
-    biologicalScope: "Linhagem que leva aos mamiferos",
+    name: "Theria",
+    biologicalScope: "Sinapsideos: linhagem que leva aos mamiferos",
     status: "Definida",
   },
   {
     code: "CLS-003",
-    name: "Sauropsideos",
-    biologicalScope: "Repteis, dinossauros, aves",
+    name: "Draconis",
+    biologicalScope: "Sauropsideos: repteis, dinossauros, aves",
     status: "Definida",
   },
 ] as const;

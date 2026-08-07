@@ -159,6 +159,99 @@ export const creatureAbilities = pgTable(
   }),
 );
 
+/**
+ * As constantes que governam o combate. Linha única — a checagem `id = 1`
+ * garante o singleton no banco, não só por convenção.
+ *
+ * Estas viviam no script de export, o que contrariava a regra de que os
+ * números moram no bestiário: ajustar balanceamento exigia editar código e
+ * não gerava changelog. Agora uma mudança de tuning é um PATCH versionado
+ * como qualquer outra decisão de design.
+ *
+ * Os limites de cada coluna não são decorativos. `damageConstant` fora de
+ * (0, 2] ou `chargeNeutralCharge` em zero não são valores ruins — são
+ * valores que quebram a aritmética do jogo, e o banco recusa.
+ */
+export const combatRules = pgTable(
+  "combat_rules",
+  {
+    id: integer("id").primaryKey().default(1),
+
+    /** Escala global do dano. Menor = lutas mais longas. */
+    damageConstant: real("damage_constant").notNull().default(0.4),
+    damageVarianceMin: real("damage_variance_min").notNull().default(0.9),
+    damageVarianceMax: real("damage_variance_max").notNull().default(1.1),
+    /** Piso: nenhum golpe que acerta causa zero. */
+    damageMinimum: integer("damage_minimum").notNull().default(1),
+
+    /** Valor que enche o medidor do Despertar Ancestral. */
+    chargeMax: integer("charge_max").notNull().default(100),
+    /** Peso do dano sofrido no enchimento. */
+    chargeTakenMultiplier: real("charge_taken_multiplier").notNull().default(1.0),
+    /** Peso do dano causado. Menor que o de sofrer, por design. */
+    chargeDealtMultiplier: real("charge_dealt_multiplier").notNull().default(0.5),
+    /** Valor de referência do stat Carga: acima disso enche mais rápido. */
+    chargeNeutralCharge: integer("charge_neutral_charge").notNull().default(50),
+
+    /** Captura nunca é impossível nem garantida. */
+    captureMinChance: real("capture_min_chance").notNull().default(0.01),
+    captureMaxChance: real("capture_max_chance").notNull().default(0.95),
+
+    levelMin: integer("level_min").notNull().default(1),
+    levelMax: integer("level_max").notNull().default(50),
+
+    /** Multiplicador de um par elemental ausente de `elemental_advantages`. */
+    elementNeutralMultiplier: real("element_neutral_multiplier").notNull().default(1.0),
+
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => ({
+    singleton: check("combat_rules_singleton", sql`${t.id} = 1`),
+    damageConstantRange: check(
+      "combat_rules_damage_constant_range",
+      sql`${t.damageConstant} > 0 AND ${t.damageConstant} <= 2`,
+    ),
+    varianceOrder: check(
+      "combat_rules_variance_order",
+      sql`${t.damageVarianceMin} > 0 AND ${t.damageVarianceMin} <= ${t.damageVarianceMax}`,
+    ),
+    damageMinimumRange: check(
+      "combat_rules_damage_minimum_range",
+      sql`${t.damageMinimum} >= 0 AND ${t.damageMinimum} <= 100`,
+    ),
+    chargeMaxRange: check(
+      "combat_rules_charge_max_range",
+      sql`${t.chargeMax} > 0 AND ${t.chargeMax} <= 1000`,
+    ),
+    chargeMultiplierRange: check(
+      "combat_rules_charge_multiplier_range",
+      sql`${t.chargeTakenMultiplier} >= 0 AND ${t.chargeTakenMultiplier} <= 20
+          AND ${t.chargeDealtMultiplier} >= 0 AND ${t.chargeDealtMultiplier} <= 20`,
+    ),
+    chargeNeutralRange: check(
+      "combat_rules_charge_neutral_range",
+      sql`${t.chargeNeutralCharge} > 0 AND ${t.chargeNeutralCharge} <= 999`,
+    ),
+    captureChanceOrder: check(
+      "combat_rules_capture_chance_order",
+      sql`${t.captureMinChance} >= 0 AND ${t.captureMinChance} <= ${t.captureMaxChance}
+          AND ${t.captureMaxChance} <= 1`,
+    ),
+    levelOrder: check(
+      "combat_rules_level_order",
+      sql`${t.levelMin} >= 1 AND ${t.levelMin} <= ${t.levelMax} AND ${t.levelMax} <= 999`,
+    ),
+    elementNeutralRange: check(
+      "combat_rules_element_neutral_range",
+      sql`${t.elementNeutralMultiplier} > 0 AND ${t.elementNeutralMultiplier} <= 10`,
+    ),
+  }),
+);
+
+export type CombatRule = typeof combatRules.$inferSelect;
+export type NewCombatRule = typeof combatRules.$inferInsert;
+
 export type CreatureStat = typeof creatureStats.$inferSelect;
 export type NewCreatureStat = typeof creatureStats.$inferInsert;
 export type AbilityStat = typeof abilityStats.$inferSelect;

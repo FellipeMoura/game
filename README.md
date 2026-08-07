@@ -2,7 +2,7 @@
 
 Web app que substitui `.docx`/`.xlsx` como fonte de verdade de um jogo 3D de coleção de criaturas com tema paleontológico. **Este repositório não é o jogo** — o jogo em Godot vive num repositório irmão, alimentado por `pnpm game:export`.
 
-O jogo: Godot, câmera isométrica ortográfica travada em 30°/45°, exploração em tempo real e combate por turnos.
+O jogo chama-se **Avyron**: Godot, câmera isométrica ortográfica travada em 30°/45°, exploração em tempo real e combate por turnos. As classes são Loricati, Theria e Draconis; as eras, Aetheris, Titanor e Novaterra — nomes de exibição, com os códigos e enums do banco inalterados.
 
 ## Dois públicos
 
@@ -120,7 +120,7 @@ game/
 
 **Catálogo:** `elements`, `elemental-advantages`, `creature-classes`, `creatures`, `awakenings`, `maps`, `biomes`, `map-biomes`, `abilities`, `items`, `npcs`, `missions`, `drops`, `documents`, `changelog`.
 
-**Camada de números** (o que o jogo executa): `creature-stats`, `ability-stats`, `capture-rules`, `creature-abilities`.
+**Camada de números** (o que o jogo executa): `combat-rules` (singleton de tuning), `creature-stats`, `ability-stats`, `capture-rules`, `creature-abilities`.
 
 Mais o endpoint especial `GET /context` — snapshot markdown do estado do projeto, primeira leitura de qualquer agente.
 

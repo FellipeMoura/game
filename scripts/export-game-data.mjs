@@ -43,17 +43,35 @@ const OUT_REPO = resolve(REPO_ROOT, arg("out", process.env.GODOT_REPO ?? "../god
 const OUT_FILE = resolve(OUT_REPO, "data/bestiary.json");
 
 /**
- * Battle constants. These are data the game reads, but their human-readable
- * spec lives in the `combate`, `carga-e-despertar` and `captura` design
- * documents — change them in both places or the docs start lying.
+ * Reshapes the flat `combat_rules` row into the nested block the game reads.
+ *
+ * The nesting exists for the consumer's sake — `rules.damage.constant` is
+ * what the GDScript reads — while the table stays flat so each constant is a
+ * typed, range-checked column. This function is the only place the two
+ * shapes meet.
  */
-const RULES = {
-  damage: { constant: 0.4, varianceMin: 0.9, varianceMax: 1.1, minimum: 1 },
-  charge: { max: 100, takenMultiplier: 1.0, dealtMultiplier: 0.5, neutralCharge: 50 },
-  capture: { minChance: 0.01, maxChance: 0.95 },
-  levels: { min: 1, max: 50 },
-  elementNeutralMultiplier: 1.0,
-};
+function shapeRules(row) {
+  return {
+    damage: {
+      constant: row.damageConstant,
+      varianceMin: row.damageVarianceMin,
+      varianceMax: row.damageVarianceMax,
+      minimum: row.damageMinimum,
+    },
+    charge: {
+      max: row.chargeMax,
+      takenMultiplier: row.chargeTakenMultiplier,
+      dealtMultiplier: row.chargeDealtMultiplier,
+      neutralCharge: row.chargeNeutralCharge,
+    },
+    capture: {
+      minChance: row.captureMinChance,
+      maxChance: row.captureMaxChance,
+    },
+    levels: { min: row.levelMin, max: row.levelMax },
+    elementNeutralMultiplier: row.elementNeutralMultiplier,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // fetching
@@ -84,6 +102,7 @@ const [
   maps,
   biomes,
   changelog,
+  combatRules,
 ] = await Promise.all([
   get(`/elements?${LIMIT}`),
   get(`/elemental-advantages?${LIMIT}`),
@@ -98,6 +117,7 @@ const [
   get(`/maps?${LIMIT}`),
   get(`/biomes?${LIMIT}`),
   get(`/changelog?limit=1`),
+  get(`/combat-rules`),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -206,7 +226,7 @@ const bundle = {
   dataVersion: changelog[0]?.version ?? "0.00",
   generatedAt: new Date().toISOString(),
   source: FROM,
-  rules: RULES,
+  rules: shapeRules(combatRules),
   elements: elements.map((e) => ({ code: e.code, name: e.name })),
   elementalAdvantages: advantages.map((a) => ({
     attacker: code(elementById, a.attackerElementId),

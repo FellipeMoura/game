@@ -5,7 +5,19 @@
  * rendering, never inline the strings.
  */
 
+/**
+ * The eras carry in-world names, not geological ones — see the `nomenclatura`
+ * document. The database enum stays `paleozoic` / `mesozoic` / `cenozoic`
+ * because that is code; only the label changes.
+ */
 export const ERA_LABEL: Record<"paleozoic" | "mesozoic" | "cenozoic", string> = {
+  paleozoic: "Aetheris",
+  mesozoic: "Titanor",
+  cenozoic: "Novaterra",
+};
+
+/** Real geological era behind each in-world name, for tooltips and docs. */
+export const ERA_SCIENTIFIC_LABEL: Record<"paleozoic" | "mesozoic" | "cenozoic", string> = {
   paleozoic: "paleozoico",
   mesozoic: "mesozoico",
   cenozoic: "cenozoico",
