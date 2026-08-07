@@ -35,7 +35,7 @@ docker run -d --name pg-bestiary -e POSTGRES_PASSWORD=postgres -p 5102:5432 post
 # 4. cria banco + aplica migrations
 pnpm db:create && pnpm db:migrate
 
-# 5. traz um snapshot de produção (caminho normal)
+# 5. traz um snapshot de produção (caminho normal) — ver docs/DB_SYNC.md para detalhes
 pnpm db:pull
 #    sem rede? `pnpm db:seed` faz um bootstrap mínimo offline
 

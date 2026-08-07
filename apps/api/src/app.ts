@@ -27,6 +27,7 @@ import { elementsRouter } from "./modules/elements/ElementsRoutes.js";
 import { gameMapsRouter } from "./modules/gameMaps/GameMapsRoutes.js";
 import { itemsRouter } from "./modules/items/ItemsRoutes.js";
 import { mapBiomesRouter } from "./modules/mapBiomes/MapBiomesRoutes.js";
+import { miningRatesRouter } from "./modules/miningRates/MiningRatesRoutes.js";
 import { missionsRouter } from "./modules/missions/MissionsRoutes.js";
 import { npcsRouter } from "./modules/npcs/NpcsRoutes.js";
 
@@ -89,6 +90,7 @@ export function createApp() {
   v1.use("/npcs", npcsRouter);
   v1.use("/missions", missionsRouter);
   v1.use("/drops", dropsRouter);
+  v1.use("/mining-rates", miningRatesRouter);
   v1.use("/documents", designDocumentsRouter);
   v1.use("/changelog", changelogRouter);
   app.use("/api/v1", v1);

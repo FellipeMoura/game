@@ -1,8 +1,9 @@
 import { boolean, check, integer, pgTable, real, serial, text, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { creatures } from "./creatures";
+import { creatureClasses } from "./creatureClasses";
 import { elements } from "./elements";
-import { gameMaps } from "./gameMaps";
+import { biomes, gameMaps } from "./gameMaps";
 import { timestamps } from "./timestamps";
 
 export const abilities = pgTable("abilities", {
@@ -82,3 +83,35 @@ export type Mission = typeof missions.$inferSelect;
 export type NewMission = typeof missions.$inferInsert;
 export type Drop = typeof drops.$inferSelect;
 export type NewDrop = typeof drops.$inferInsert;
+
+/**
+ * Mining rates junction: one record per (class × item) or (biome × item).
+ * Exactly one of classId/biomeId is non-null (enforced by CHECK).
+ * weight is a relative value [0,1] — the game normalizes per subject.
+ * Final ore chance = normalize(class_weight[ore] × biome_weight[ore]).
+ */
+export const miningRates = pgTable(
+  "mining_rates",
+  {
+    id: serial("id").primaryKey(),
+    classId: integer("class_id").references(() => creatureClasses.id, { onDelete: "cascade" }),
+    biomeId: integer("biome_id").references(() => biomes.id, { onDelete: "cascade" }),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    weight: real("weight").notNull(),
+    ...timestamps,
+  },
+  (t) => ({
+    uniqueClassItem: unique("mining_rates_class_item_unique").on(t.classId, t.itemId),
+    uniqueBiomeItem: unique("mining_rates_biome_item_unique").on(t.biomeId, t.itemId),
+    subjectCheck: check(
+      "mining_rates_subject_check",
+      sql`(${t.classId} IS NULL) != (${t.biomeId} IS NULL)`,
+    ),
+    weightRange: check("mining_rates_weight_range", sql`${t.weight} >= 0 AND ${t.weight} <= 1`),
+  }),
+);
+
+export type MiningRate = typeof miningRates.$inferSelect;
+export type NewMiningRate = typeof miningRates.$inferInsert;

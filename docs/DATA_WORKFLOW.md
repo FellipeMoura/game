@@ -6,7 +6,7 @@ Guia operacional. Vale para agente e para humano.
 
 **A API é a única via de escrita.** Não existe formulário no frontend, e o `seed/` está congelado desde o primeiro deploy. Toda mudança carrega `reason` e `impact`, e o servidor grava a entrada de changelog e atribui a versão na mesma transação. O changelog é o registro — não um arquivo, não um commit.
 
-**Escreva direto em produção.** Prod é a fonte de verdade. Para trabalhar local, hidrate com `pnpm db:pull` depois. Escrever local e promover depois foi um contorno pontual de quando os endpoints ainda não existiam em prod; não repita — é assim que dois bancos divergem.
+**Escreva direto em produção.** Prod é a fonte de verdade. Para trabalhar local, hidrate com `pnpm db:pull` depois — detalhes do sync em [DB_SYNC.md](DB_SYNC.md). Escrever local e promover depois foi um contorno pontual de quando os endpoints ainda não existiam em prod; não repita — é assim que dois bancos divergem.
 
 ```
 escrever  →  prod, via API
@@ -222,7 +222,7 @@ Despertar, stats, regra de captura, vínculos de habilidade e drops caem em casc
 
 ```powershell
 cd ..\game
-pnpm db:pull                                                    # atualiza o local
+pnpm db:pull                                                    # atualiza o local — ver docs/DB_SYNC.md
 pnpm game:export --from https://bestiary.sysnode.com.br --out ..\avyron
 cd ..\avyron; git add data/bestiary.json; git commit -m "..."   # bundle versionado
 ```

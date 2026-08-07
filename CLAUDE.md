@@ -129,7 +129,7 @@ Direção: **arquivo científico dark editorial**. Não é padrão frostie/shadc
 ```powershell
 pnpm dev                  # sobe api + web em paralelo
 pnpm typecheck            # três workspaces
-pnpm db:pull              # hidrata o dev com um snapshot de prod — o caminho normal
+pnpm db:pull              # hidrata o dev com um snapshot de prod (ver docs/DB_SYNC.md)
 pnpm db:studio            # drizzle-kit GUI para inspecionar
 pnpm openapi:generate     # regera schema.d.ts do web a partir da API rodando
 pnpm game:export          # gera o bundle JSON no repo Godot irmão
@@ -157,6 +157,7 @@ pnpm db:reset             # create + generate + migrate + seed (setup do zero, s
 
 - **README.md** — como clonar e rodar
 - **docs/DATA_WORKFLOW.md** — como inserir e corrigir dados via API (leitura obrigatória antes de escrever)
+- **docs/DB_SYNC.md** — como atualizar o dev com snapshot de prod (`pnpm db:pull`, os dois modos, tunnel SSH)
 - **`packages/db/src/schema/`** — modelo de dados (19 tabelas + junctions + enums)
 - **`packages/db/src/schema/stats.ts`** — a camada de números, com as fórmulas documentadas
 - **`apps/api/src/shared/services/`** — as decisões arquiteturais principais (terminology, changelog, crudFactory, crudRoutes, childUpsertFactory, childUpsertRoutes, fkResolver, query)
