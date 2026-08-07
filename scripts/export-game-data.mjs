@@ -103,6 +103,8 @@ const [
   biomes,
   changelog,
   combatRules,
+  minerals,
+  miningRates,
 ] = await Promise.all([
   get(`/elements?${LIMIT}`),
   get(`/elemental-advantages?${LIMIT}`),
@@ -118,6 +120,8 @@ const [
   get(`/biomes?${LIMIT}`),
   get(`/changelog?limit=1`),
   get(`/combat-rules`),
+  get(`/items?${LIMIT}`),
+  get(`/mining-rates?${LIMIT}`),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -131,6 +135,7 @@ const creatureById = byId(creatures);
 const abilityById = byId(abilities);
 const mapById = byId(maps);
 const biomeById = byId(biomes);
+const itemById = byId(minerals);
 
 const code = (map, id) => (id == null ? null : (map.get(id)?.code ?? null));
 
@@ -248,6 +253,7 @@ const bundle = {
     code: c.code,
     name: c.name,
     biologicalScope: c.biologicalScope,
+    workFunction: c.workFunction ? JSON.parse(c.workFunction) : null,
   })),
   maps: maps.map((m) => ({ code: m.code, name: m.name, era: m.era, sortOrder: m.sortOrder })),
   biomes: biomes.map((b) => ({
@@ -257,6 +263,21 @@ const bundle = {
   })),
   abilities: outAbilities,
   creatures: outCreatures,
+  mining: {
+    items: minerals.map((i) => ({
+      code: i.code,
+      name: i.name,
+      category: i.category,
+      effect: i.effect,
+      notes: i.notes,
+    })),
+    rates: miningRates.map((r) => ({
+      classCode: code(classById, r.classId),
+      biomeCode: code(biomeById, r.biomeId),
+      itemCode: code(itemById, r.itemId),
+      weight: r.weight,
+    })),
+  },
 };
 
 // ---------------------------------------------------------------------------

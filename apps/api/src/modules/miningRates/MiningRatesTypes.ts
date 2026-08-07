@@ -30,25 +30,29 @@ export const ListMiningRatesQuerySchema = paginationSchema.extend({
   itemCode: z.string().optional(),
 });
 
-const coreSchema = z
-  .object({
-    classCode: z.string().optional().openapi({ example: "CLS-001" }),
-    biomeCode: z.string().optional().openapi({ example: "BIO-001" }),
-    itemCode: z.string().openapi({ example: "ITM-001" }),
-    weight: z.number().min(0).max(1).openapi({ example: 0.25 }),
-  })
-  .refine((d) => Boolean(d.classCode) !== Boolean(d.biomeCode), {
-    message: "Exactly one of classCode or biomeCode must be provided",
-  });
+const coreShape = z.object({
+  classCode: z.string().optional().openapi({ example: "CLS-001" }),
+  biomeCode: z.string().optional().openapi({ example: "BIO-001" }),
+  itemCode: z.string().openapi({ example: "ITM-001" }),
+  weight: z.number().min(0).max(1).openapi({ example: 0.25 }),
+});
+
+const subjectRefine = (d: { classCode?: string; biomeCode?: string }) =>
+  Boolean(d.classCode) !== Boolean(d.biomeCode);
+const subjectRefinement = { message: "Exactly one of classCode or biomeCode must be provided" };
 
 /**
  * Upsert semantics: natural key is (classCode + itemCode) or (biomeCode + itemCode).
  * Re-POST to change the weight. No PATCH/DELETE.
  */
-export const UpsertMiningRateBodySchema = coreSchema.merge(changeMetadataSchema).openapi("UpsertMiningRateBody");
+export const UpsertMiningRateBodySchema = coreShape
+  .merge(changeMetadataSchema)
+  .refine(subjectRefine, subjectRefinement)
+  .openapi("UpsertMiningRateBody");
+
 export const BatchUpsertMiningRatesBodySchema = z
   .object({
-    items: z.array(coreSchema).min(1).max(200),
+    items: z.array(coreShape.refine(subjectRefine, subjectRefinement)).min(1).max(200),
     reason: changeMetadataSchema.shape.reason,
     impact: changeMetadataSchema.shape.impact,
   })
