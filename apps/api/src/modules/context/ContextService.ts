@@ -124,6 +124,14 @@ export async function buildContextMarkdown(): Promise<string> {
   lines.push("- The Despertar meter fills on damage taken (×1.0) and dealt (×0.5), scaled by `baseCharge / 50`. Full at 100, lasts 3 turns. See document `carga-e-despertar`.");
   lines.push("");
 
+  lines.push("## Mining system");
+  lines.push("_Tamed creatures mine automatically. Ore type is determined by class × biome affinity._");
+  lines.push("- `items` — mineral SKUs (ITM-001 Pedra … ITM-012 Cristal Elemental Gelo). `category: \"mineral\"`.");
+  lines.push("- `mining-rates` — junction: (classCode|biomeCode) + itemCode → weight [0,1]. Upsert, no PATCH/DELETE.");
+  lines.push("- Final ore chance: `normalize(class_weight[ore] × biome_weight[ore])`. See document `mineracao`.");
+  lines.push("- `creature_classes.workFunction` — JSON `{speedModifier, preferredOres, role}` per class.");
+  lines.push("");
+
   lines.push("## Elements");
   for (const e of elements) lines.push(`- ${e.code} — ${e.name}`);
   lines.push("");
@@ -187,6 +195,7 @@ export async function buildContextMarkdown(): Promise<string> {
     "capture-rules",
     "creature-abilities",
     "items",
+    "mining-rates",
     "npcs",
     "missions",
     "drops",
