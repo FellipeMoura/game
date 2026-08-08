@@ -1,5 +1,6 @@
 import { boolean, check, integer, pgTable, real, serial, text, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { itemCategoryEnum, npcRoleEnum } from "./enums";
 import { creatures } from "./creatures";
 import { creatureClasses } from "./creatureClasses";
 import { elements } from "./elements";
@@ -22,7 +23,8 @@ export const items = pgTable("items", {
   id: serial("id").primaryKey(),
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
-  category: text("category"),
+  /** Enum, not free text — the export filters minable ore on this column. */
+  category: itemCategoryEnum("category").notNull().default("mineral"),
   effect: text("effect"),
   acquisition: text("acquisition"),
   notes: text("notes"),
@@ -35,10 +37,42 @@ export const npcs = pgTable("npcs", {
   name: text("name").notNull(),
   faction: text("faction"),
   mapId: integer("map_id").references(() => gameMaps.id),
-  role: text("role"),
+  /** Decides which screen the game opens on interaction. */
+  role: npcRoleEnum("role").notNull().default("flavor"),
   notes: text("notes"),
   ...timestamps,
 });
+
+/**
+ * What a merchant carries. Junction npc × item with upsert semantics, same
+ * shape as `drops` and `map_biomes`.
+ *
+ * `price` is an override; null means "charge `item_stats.value`". Having the
+ * override lets one merchant be expensive without duplicating the item, which
+ * is what makes a second village cost data instead of code.
+ */
+export const merchantOffers = pgTable(
+  "merchant_offers",
+  {
+    id: serial("id").primaryKey(),
+    npcId: integer("npc_id")
+      .notNull()
+      .references(() => npcs.id, { onDelete: "cascade" }),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    price: integer("price"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => ({
+    uniquePair: unique("merchant_offers_npc_item_unique").on(t.npcId, t.itemId),
+    priceRange: check("merchant_offers_price_range", sql`${t.price} IS NULL OR ${t.price} >= 0`),
+  }),
+);
+
+export type MerchantOffer = typeof merchantOffers.$inferSelect;
+export type NewMerchantOffer = typeof merchantOffers.$inferInsert;
 
 export const missions = pgTable("missions", {
   id: serial("id").primaryKey(),

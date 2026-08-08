@@ -1,7 +1,7 @@
 import { boolean, check, integer, pgTable, real, serial, text, unique } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { abilityEffectEnum } from "./enums";
-import { abilities } from "./gameplay";
+import { abilityEffectEnum, itemEffectEnum } from "./enums";
+import { abilities, items } from "./gameplay";
 import { creatures } from "./creatures";
 import { timestamps } from "./timestamps";
 
@@ -10,14 +10,20 @@ import { timestamps } from "./timestamps";
  * turn-based battle, kept separate from the editorial catalog so the
  * bestiary tables stay descriptive and these stay tunable.
  *
- * Four tables, matching the agreed scope:
+ * As tabelas:
  *   creature_stats   — 1:1 with creatures, base values + growth curve
  *   ability_stats    — 1:1 with abilities, the executable move numbers
  *   capture_rules    — 1:1 with creatures, capture difficulty
  *   creature_abilities — junction; which creature knows which move, at what level
+ *   combat_rules     — singleton, as constantes de dano/carga/captura
+ *   item_stats       — 1:1 with items, preço e efeito executável
+ *   economy_rules    — singleton, moeda e margem do comerciante
  *
- * `elemental_advantages` (the fifth piece of the layer) already existed as a
- * table and only needed data.
+ * `elemental_advantages` já existia como tabela e só precisava de dados.
+ *
+ * A contagem não é regra: quando um sistema novo pediu números — mineração,
+ * economia —, a camada cresceu. O que é regra é que número de tuning não mora
+ * em código.
  */
 
 /**
@@ -283,8 +289,95 @@ export const combatRules = pgTable(
   }),
 );
 
+/**
+ * O que um item *faz* e quanto ele vale. 1:1 com `items`, mesmo padrão de
+ * `ability_stats` — o catálogo em `items` descreve para humano, isto executa.
+ *
+ * Separar em tabela própria, em vez de engordar `items`, mantém a divisão que
+ * o repo já tem: catálogo editorial de um lado, números afináveis do outro.
+ * Mudar preço vira upsert versionado, não edição de ficha.
+ */
+export const itemStats = pgTable(
+  "item_stats",
+  {
+    id: serial("id").primaryKey(),
+    itemId: integer("item_id")
+      .notNull()
+      .unique()
+      .references(() => items.id, { onDelete: "cascade" }),
+
+    /** Preço de compra, na moeda de `economy_rules`. O de venda sai do `sellRatio`. */
+    value: integer("value").notNull().default(0),
+
+    effectCode: itemEffectEnum("effect_code").notNull().default("none"),
+    /**
+     * Significado depende do `effectCode`: multiplicador da chance em
+     * `capture_bonus`, pontos de HP em `heal_flat`, porcentagem do HP máximo
+     * em `heal_percent`. Ignorado em `none`.
+     */
+    effectValue: real("effect_value").notNull().default(0),
+
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => ({
+    valueRange: check("item_stats_value_range", sql`${t.value} >= 0 AND ${t.value} <= 1000000`),
+    effectValueRange: check(
+      "item_stats_effect_value_range",
+      sql`${t.effectValue} >= 0 AND ${t.effectValue} <= 1000`,
+    ),
+  }),
+);
+
+/**
+ * As constantes da economia. Linha única, igual a `combat_rules` — e pelo
+ * mesmo motivo: nenhum número de tuning pode morar em código, porque lá ele
+ * não gera changelog nem versão.
+ */
+export const economyRules = pgTable(
+  "economy_rules",
+  {
+    id: integer("id").primaryKey().default(1),
+
+    /**
+     * Nome da moeda, em exibição. Fica aqui e não numa constante do Godot
+     * porque renomear a moeda é decisão de conteúdo, não de código.
+     */
+    currencyName: text("currency_name").notNull().default("Óbolo"),
+    currencyNamePlural: text("currency_name_plural").notNull().default("Óbolos"),
+
+    /** Quanto o jogador começa com. */
+    startingCurrency: integer("starting_currency").notNull().default(120),
+
+    /**
+     * Fração do `value` que o comerciante paga ao comprar do jogador. O
+     * spread entre comprar e vender é a margem dele — em 1.0 o jogador
+     * lucraria comprando e revendendo em loop.
+     */
+    sellRatio: real("sell_ratio").notNull().default(0.4),
+
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => ({
+    singleton: check("economy_rules_singleton", sql`${t.id} = 1`),
+    sellRatioRange: check(
+      "economy_rules_sell_ratio_range",
+      sql`${t.sellRatio} > 0 AND ${t.sellRatio} < 1`,
+    ),
+    startingRange: check(
+      "economy_rules_starting_range",
+      sql`${t.startingCurrency} >= 0 AND ${t.startingCurrency} <= 1000000`,
+    ),
+  }),
+);
+
 export type CombatRule = typeof combatRules.$inferSelect;
 export type NewCombatRule = typeof combatRules.$inferInsert;
+export type ItemStat = typeof itemStats.$inferSelect;
+export type NewItemStat = typeof itemStats.$inferInsert;
+export type EconomyRule = typeof economyRules.$inferSelect;
+export type NewEconomyRule = typeof economyRules.$inferInsert;
 
 export type CreatureStat = typeof creatureStats.$inferSelect;
 export type NewCreatureStat = typeof creatureStats.$inferInsert;

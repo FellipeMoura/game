@@ -103,7 +103,11 @@ const [
   biomes,
   changelog,
   combatRules,
-  minerals,
+  allItems,
+  itemStats,
+  economyRules,
+  npcs,
+  merchantOffers,
   miningRates,
 ] = await Promise.all([
   get(`/elements?${LIMIT}`),
@@ -121,6 +125,10 @@ const [
   get(`/changelog?limit=1`),
   get(`/combat-rules`),
   get(`/items?${LIMIT}`),
+  get(`/item-stats?${LIMIT}`),
+  get(`/economy-rules`),
+  get(`/npcs?${LIMIT}`),
+  get(`/merchant-offers?${LIMIT}`),
   get(`/mining-rates?${LIMIT}`),
 ]);
 
@@ -135,9 +143,30 @@ const creatureById = byId(creatures);
 const abilityById = byId(abilities);
 const mapById = byId(maps);
 const biomeById = byId(biomes);
-const itemById = byId(minerals);
+const itemById = byId(allItems);
+const npcById = byId(npcs);
 
 const code = (map, id) => (id == null ? null : (map.get(id)?.code ?? null));
+
+/**
+ * Minável é o que a categoria diz, não a tabela inteira.
+ *
+ * Antes daqui `mining.items` recebia `GET /items` cru. Funcionava enquanto
+ * todo item era minério; o primeiro item de comerciante teria sido exportado
+ * como mineral. Não quebraria o jogo — sem linha em `mining_rates` ele nunca
+ * seria sorteado — mas o bloco passaria a mentir sobre o que ele é, e esse é
+ * o tipo de erro que ninguém encontra até muito depois.
+ */
+const minerals = allItems.filter((i) => i.category === "mineral");
+
+const itemStatByItem = new Map(itemStats.map((s) => [s.itemId, s]));
+
+const offersByNpc = new Map();
+for (const offer of merchantOffers) {
+  const list = offersByNpc.get(offer.npcId) ?? [];
+  list.push(offer);
+  offersByNpc.set(offer.npcId, list);
+}
 
 const statsByCreature = byId([]);
 for (const s of creatureStats) statsByCreature.set(s.creatureId, s);
@@ -157,6 +186,67 @@ for (const link of creatureAbilities) {
 // ---------------------------------------------------------------------------
 
 const problems = [];
+
+/**
+ * Itens com preço e efeito. Um item sem linha em `item_stats` sai com valor 0
+ * e efeito `none` em vez de derrubar o export: mineral recém-cadastrado ainda
+ * não precificado é estado normal de trabalho, e travar a exportação inteira
+ * por isso pararia o jogo por causa de um número que ninguém decidiu ainda.
+ *
+ * O que **não** é tolerado é item de efeito sem número — um item de captura
+ * com `effectValue` 0 seria comprado, usado e não faria nada.
+ */
+const outItems = allItems.map((i) => {
+  const s = itemStatByItem.get(i.id);
+  const effectCode = s?.effectCode ?? "none";
+  const effectValue = s?.effectValue ?? 0;
+
+  if (effectCode !== "none" && effectValue <= 0) {
+    problems.push(
+      `item ${i.code} (${i.name}) has effectCode '${effectCode}' but effectValue ${effectValue}`,
+    );
+  }
+  if (i.category !== "mineral" && (s?.value ?? 0) <= 0) {
+    problems.push(`item ${i.code} (${i.name}) is sold but has no value in item_stats`);
+  }
+
+  return {
+    code: i.code,
+    name: i.name,
+    category: i.category,
+    effect: i.effect,
+    notes: i.notes,
+    value: s?.value ?? 0,
+    effectCode,
+    effectValue,
+  };
+});
+
+/**
+ * Só quem tem papel de comerciante, com o catálogo já resolvido em códigos.
+ * O jogo não deve precisar cruzar duas listas para desenhar uma loja.
+ */
+const outMerchants = npcs
+  .filter((n) => n.role === "merchant")
+  .map((n) => {
+    const offers = (offersByNpc.get(n.id) ?? []).sort((a, b) => a.sortOrder - b.sortOrder);
+    if (offers.length === 0) {
+      problems.push(`npc ${n.code} (${n.name}) is a merchant with no merchant_offers`);
+    }
+    return {
+      code: n.code,
+      name: n.name,
+      faction: n.faction,
+      map: code(mapById, n.mapId),
+      notes: n.notes,
+      offers: offers.map((o) => ({
+        itemCode: code(itemById, o.itemId),
+        // Preço já resolvido: null no banco significa "cobra o base", e
+        // decidir isso aqui evita o jogo reimplementar a mesma regra.
+        price: o.price ?? itemStatByItem.get(o.itemId)?.value ?? 0,
+      })),
+    };
+  });
 
 const outAbilities = abilities.map((a) => {
   const s = abilityStatByAbility.get(a.id);
@@ -263,6 +353,19 @@ const bundle = {
   })),
   abilities: outAbilities,
   creatures: outCreatures,
+  /**
+   * Todo item do catálogo, com os números que o jogo executa. `mining.items`
+   * continua existindo como a fatia minerável — o jogo lê preço e efeito
+   * daqui, e sorteio de picareta de lá.
+   */
+  items: outItems,
+  economy: {
+    currencyName: economyRules.currencyName,
+    currencyNamePlural: economyRules.currencyNamePlural,
+    startingCurrency: economyRules.startingCurrency,
+    sellRatio: economyRules.sellRatio,
+  },
+  merchants: outMerchants,
   mining: {
     items: minerals.map((i) => ({
       code: i.code,

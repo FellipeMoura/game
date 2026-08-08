@@ -13,6 +13,7 @@ export const npcsController = {
         fields: q.fields,
         mapCode: q.mapCode,
         faction: q.faction,
+        role: q.role,
       }),
     );
   }) satisfies RequestHandler,

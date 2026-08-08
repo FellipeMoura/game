@@ -40,8 +40,25 @@ if (mode === "db") {
   }
 }
 
-// Insert order: parents before children. TRUNCATE ... CASCADE ignores order.
-const TABLES = [
+interface PullTable {
+  name: string;
+  endpoint: string;
+  /** Recurso de linha única: o GET devolve o objeto, não uma lista. */
+  singleton?: boolean;
+}
+
+/**
+ * Insert order: parents before children. TRUNCATE ... CASCADE ignores order.
+ *
+ * **Toda tabela nova precisa entrar aqui.** Esquecer é silencioso: o pull
+ * roda, reporta sucesso, e o dev fica com a tabela vazia. Foi o que aconteceu
+ * com a camada de números inteira — `creature_stats`, `ability_stats`,
+ * `capture_rules` e `creature_abilities` nunca estiveram nesta lista, então
+ * qualquer máquina hidratada por `db:pull` tinha catálogo completo e zero
+ * números, e o `game:export` abortava com "creature X has no creature_stats"
+ * apontando para um dado que existe em prod.
+ */
+const TABLES: readonly PullTable[] = [
   { name: "elements", endpoint: "elements" },
   { name: "creature_classes", endpoint: "creature-classes" },
   { name: "biomes", endpoint: "biomes" },
@@ -58,7 +75,17 @@ const TABLES = [
   { name: "missions", endpoint: "missions" },
   { name: "drops", endpoint: "drops" },
   { name: "mining_rates", endpoint: "mining-rates" },
-] as const;
+
+  // Camada de números — o que o jogo executa.
+  { name: "creature_stats", endpoint: "creature-stats" },
+  { name: "ability_stats", endpoint: "ability-stats" },
+  { name: "capture_rules", endpoint: "capture-rules" },
+  { name: "creature_abilities", endpoint: "creature-abilities" },
+  { name: "item_stats", endpoint: "item-stats" },
+  { name: "merchant_offers", endpoint: "merchant-offers" },
+  { name: "combat_rules", endpoint: "combat-rules", singleton: true },
+  { name: "economy_rules", endpoint: "economy-rules", singleton: true },
+];
 
 type Row = Record<string, unknown>;
 
@@ -138,21 +165,42 @@ function normalizeKeys(rows: Row[]): Row[] {
   });
 }
 
-async function fetchTable(t: { name: string; endpoint: string }): Promise<Row[]> {
+async function fetchTable(t: PullTable): Promise<Row[]> {
   if (prodDb) {
     return prodDb.unsafe<Row[]>(`SELECT * FROM ${t.name} ORDER BY id`);
+  }
+  // Singleton devolve o objeto direto. Paginar sobre ele espalharia as chaves
+  // do objeto como se fossem linhas.
+  if (t.singleton) {
+    const url = `${prodApiBase}/api/v1/${t.endpoint}`;
+    const res = await fetch(url);
+    if (res.status === 404) return notDeployedYet(t);
+    if (!res.ok) throw new Error(`GET ${url} → ${res.status} ${res.statusText}`);
+    return [(await res.json()) as Row];
   }
   const PAGE = 500;
   const all: Row[] = [];
   for (let offset = 0; ; offset += PAGE) {
     const url = `${prodApiBase}/api/v1/${t.endpoint}?limit=${PAGE}&offset=${offset}`;
     const res = await fetch(url);
+    if (res.status === 404 && offset === 0) return notDeployedYet(t);
     if (!res.ok) throw new Error(`GET ${url} → ${res.status} ${res.statusText}`);
     const page = (await res.json()) as Row[];
     all.push(...page);
     if (page.length < PAGE) break;
   }
   return all;
+}
+
+/**
+ * Recurso que existe no schema local mas ainda não em produção — estado normal
+ * entre o merge e o deploy, já que os dois repositórios andam em ritmos
+ * diferentes. Vazio é a resposta correta (prod não tem esse dado), mas o aviso
+ * fica alto: se este texto aparecer depois de um deploy, o endpoint não subiu.
+ */
+function notDeployedYet(t: PullTable): Row[] {
+  console.warn(`  ${t.name.padEnd(24)} SKIP — /${t.endpoint} nao existe em ${prodApiBase}`);
+  return [];
 }
 
 async function getProdVersion(): Promise<string | null> {

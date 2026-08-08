@@ -1,12 +1,19 @@
 import { z } from "../../shared/openapi/zod";
 import { changeMetadataSchema, paginationSchema } from "../../shared/services/query";
 
+/**
+ * O que o item é. Virou enum quando o comerciante entrou: o export filtra
+ * minério nesta coluna, e como texto livre ele levava a tabela inteira para
+ * `mining.items` — o primeiro item de loja teria sido exportado como minerável.
+ */
+export const ITEM_CATEGORIES = ["mineral", "capture", "heal"] as const;
+
 export const ItemSchema = z
   .object({
     id: z.number().int(),
     code: z.string().openapi({ example: "ITM-001" }),
     name: z.string(),
-    category: z.string().nullable(),
+    category: z.enum(ITEM_CATEGORIES),
     effect: z.string().nullable(),
     acquisition: z.string().nullable(),
     notes: z.string().nullable(),
@@ -21,14 +28,14 @@ export const ITEM_FIELDS = [
 
 export const ListItemsQuerySchema = paginationSchema.extend({
   fields: z.string().optional(),
-  category: z.string().optional(),
+  category: z.enum(ITEM_CATEGORIES).optional(),
 });
 export const CodeParamsSchema = z.object({ code: z.string().openapi({ example: "ITM-001" }) });
 
 const coreSchema = z.object({
   code: z.string().min(3).max(16),
   name: z.string().min(1).max(128),
-  category: z.string().max(64).nullish(),
+  category: z.enum(ITEM_CATEGORIES).optional().openapi({ example: "mineral" }),
   effect: z.string().max(2000).nullish(),
   acquisition: z.string().max(500).nullish(),
   notes: z.string().max(2000).nullish(),

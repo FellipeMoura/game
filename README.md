@@ -120,7 +120,7 @@ game/
 
 **Catálogo:** `elements`, `elemental-advantages`, `creature-classes`, `creatures`, `awakenings`, `maps`, `biomes`, `map-biomes`, `abilities`, `items`, `npcs`, `missions`, `drops`, `documents`, `changelog`.
 
-**Camada de números** (o que o jogo executa): `combat-rules` (singleton de tuning), `creature-stats`, `ability-stats`, `capture-rules`, `creature-abilities`.
+**Camada de números** (o que o jogo executa): `combat-rules` e `economy-rules` (singletons de tuning), `creature-stats`, `ability-stats`, `capture-rules`, `creature-abilities`, `item-stats`, `mining-rates`, `merchant-offers`.
 
 Mais o endpoint especial `GET /context` — snapshot markdown do estado do projeto, primeira leitura de qualquer agente.
 

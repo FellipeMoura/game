@@ -27,6 +27,7 @@ export const npcsService = {
     fields?: string;
     mapCode?: string;
     faction?: string;
+    role?: (typeof schema.npcs.$inferSelect)["role"];
   }) {
     const fields = parseFields(params.fields, NPC_FIELDS);
     const projection = buildProjection(schema.npcs as unknown as Record<string, unknown>, fields);
@@ -34,6 +35,9 @@ export const npcsService = {
     const filters = [];
     if (mapId !== null) filters.push(eq(schema.npcs.mapId, mapId));
     if (params.faction) filters.push(eq(schema.npcs.faction, params.faction));
+    // Filtrar por papel é o que deixa o export pegar só os comerciantes sem
+    // trazer o vilarejo inteiro.
+    if (params.role) filters.push(eq(schema.npcs.role, params.role));
     const q = projection ? db.select(projection).from(schema.npcs) : db.select().from(schema.npcs);
     return q
       .where(filters.length ? and(...filters) : undefined)

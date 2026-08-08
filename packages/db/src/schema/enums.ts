@@ -18,3 +18,38 @@ export const abilityEffectEnum = pgEnum("ability_effect", [
   "heal",
   "charge_gain",
 ]);
+
+/**
+ * What an item *is*. Was free text, which the export could not filter on —
+ * `mining.items` took every row in the table, so the first non-mineral item
+ * added would have been exported as minable ore.
+ *
+ * `mineral` is what mining produces and the merchant buys: trade good, no
+ * effect of its own. The rest are consumables the player buys.
+ */
+export const itemCategoryEnum = pgEnum("item_category", ["mineral", "capture", "heal"]);
+
+/**
+ * Machine-readable effect of an item — the same contract `ability_effect` has
+ * with the battle system, for the inventory. `items.effect` stays prose for
+ * humans; this is what Godot switches on.
+ *
+ * - `none` — pure trade good (every mineral).
+ * - `capture_bonus` — `effectValue` multiplies the capture chance. The hook
+ *   already existed in the game (`BattleAction.item_bonus`) and had no data
+ *   feeding it.
+ * - `heal_flat` — restores `effectValue` HP.
+ * - `heal_percent` — restores `effectValue`% of max HP.
+ */
+export const itemEffectEnum = pgEnum("item_effect", [
+  "none",
+  "capture_bonus",
+  "heal_flat",
+  "heal_percent",
+]);
+
+/**
+ * What an NPC does when the player clicks it. Drives which screen opens, so
+ * it is not decorative — free text here would mean the game guessing.
+ */
+export const npcRoleEnum = pgEnum("npc_role", ["merchant", "duelist", "quest", "flavor"]);

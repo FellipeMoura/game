@@ -160,6 +160,74 @@ Invoke-RestMethod "$api/ability-stats" -Method Post -Headers $h -Body $body
 
 `effectCode` válidos: `damage`, `buff_attack`, `buff_defense`, `debuff_attack`, `debuff_defense`, `heal`, `charge_gain`. Com `power` 0 a habilidade não causa dano — é movimento de status e trabalha pelo `effectCode`.
 
+## Adicionar um item
+
+Dois passos, como habilidade: o item e os números dele.
+
+```powershell
+$body = @{
+  code = "ITM-019"; name = "Resina Turva"; category = "capture"
+  effect = "Aumenta a chance de captura de criaturas feridas."
+  acquisition = "Comerciante"
+  reason = "Faixa intermediaria entre Resina Comum e Densa"
+  impact = "Suaviza o salto de preco de 60 para 180"
+} | ConvertTo-Json
+Invoke-RestMethod "$api/items" -Method Post -Headers $h -Body $body
+
+$body = @{
+  itemCode = "ITM-019"; value = 110
+  effectCode = "capture_bonus"; effectValue = 2.0
+  reason = "Preco entre os dois vizinhos, bonus proporcional"
+  impact = "~70s de mineracao no PZ-01"
+} | ConvertTo-Json
+Invoke-RestMethod "$api/item-stats" -Method Post -Headers $h -Body $body
+```
+
+`category` válidas: `mineral`, `capture`, `heal`. **Não é rótulo** — o export filtra minério nesta coluna, e um consumível marcado como `mineral` vira minério de chão.
+
+`effectCode` válidos: `none`, `capture_bonus`, `heal_flat`, `heal_percent`. O `effectValue` muda de unidade conforme o código: multiplicador em `capture_bonus`, pontos de HP em `heal_flat`, porcentagem do HP máximo em `heal_percent`.
+
+O export **aborta** se um item tiver efeito com `effectValue` zero, ou se um item não-mineral não tiver preço — os dois seriam comprados e não fariam nada.
+
+## Montar um comerciante
+
+```powershell
+$body = @{
+  code = "NPC-002"; name = "Ferreira Tulk"; faction = "Guilda dos Curadores"
+  mapCode = "PZ-01"; role = "merchant"
+  reason = "..."; impact = "..."
+} | ConvertTo-Json
+Invoke-RestMethod "$api/npcs" -Method Post -Headers $h -Body $body
+
+$body = @{
+  items = @(
+    @{ npcCode="NPC-002"; itemCode="ITM-013"; sortOrder=0 }
+    @{ npcCode="NPC-002"; itemCode="ITM-019"; price=140; sortOrder=1 }
+  )
+  reason = "..."; impact = "..."
+} | ConvertTo-Json -Depth 4
+Invoke-RestMethod "$api/merchant-offers/batch" -Method Post -Headers $h -Body $body
+```
+
+`role` válidos: `merchant`, `duelist`, `quest`, `flavor` — decide qual tela o jogo abre. `price` omitido cobra `item_stats.value`; preenchido, é o sobrepreço daquele comerciante.
+
+O export **aborta** se um NPC com papel `merchant` não tiver nenhuma oferta — uma loja vazia é sempre erro de cadastro.
+
+## Balancear a economia
+
+`economy_rules` é singleton, como `combat_rules`:
+
+```powershell
+$body = @{
+  sellRatio = 0.35
+  reason = "0.40 deixava a mineracao pagar rapido demais pela Resina Ancestral"
+  impact = "Alonga a progressao economica em ~15%"
+} | ConvertTo-Json
+Invoke-RestMethod "$api/economy-rules" -Method Patch -Headers $h -Body $body
+```
+
+`sellRatio` fica em (0, 1) por CHECK: em 1.0 o jogador lucraria comprando e revendendo em loop.
+
 ## Balancear o combate
 
 As constantes que governam dano, carga e captura ficam em `combat_rules`, um recurso singleton. Sem código, sem lista, sem POST — só `GET` e `PATCH`.

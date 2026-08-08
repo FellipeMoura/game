@@ -94,15 +94,23 @@ Estas quatro regras não têm exceção. Se algo parecer conflitar com elas, ela
 
 ## Camada de números (o que o jogo consome)
 
-Cinco tabelas separam o catálogo editorial dos valores que o jogo executa.
+Estas tabelas separam o catálogo editorial dos valores que o jogo executa.
 
 - `combat_rules` — **singleton** (`id = 1`, garantido por CHECK). As constantes de tuning: escala de dano, variância, taxas de enchimento da carga, limites de captura, teto de nível. `GET /combat-rules` e `PATCH /combat-rules` — sem código, sem lista, sem POST. **É aqui que se balanceia o jogo.**
 - `creature_stats` — 1:1 com criatura. `baseHp`, `baseAttack`, `baseDefense`, `baseSpeed`, `baseCharge`, `growthRate`. Valor efetivo: `floor(base * (1 + growthRate * (nível - 1)))`.
 - `ability_stats` — 1:1 com habilidade. `power` 0 = movimento de status; `effectCode` é o switch que o Godot roda.
 - `capture_rules` — 1:1 com criatura. `catchRate` 1–255.
 - `creature_abilities` — junção: qual criatura sabe qual golpe, em que nível.
+- `item_stats` — 1:1 com item. `value` (preço de compra) e o par `effectCode`/`effectValue`, que é o switch que o Godot roda ao usar o item. Mesmo contrato de `ability_stats`.
+- `economy_rules` — **singleton**. Nome da moeda (`Óbolo`), bolsa inicial, e `sellRatio`: a fração do `value` que o comerciante paga ao comprar do jogador. O CHECK trava em (0, 1) — em 1.0 o jogador lucraria comprando e revendendo em loop.
+- `merchant_offers` — junção npc × item: o catálogo de cada comerciante. `price` nulo cobra `item_stats.value`, o que faz um segundo vilarejo mais caro custar dado em vez de código.
 
-As quatro últimas usam upsert — re-POST para mudar, sem PATCH. `combat_rules` é a exceção: sendo singleton, PATCH é a operação natural.
+As junções e as tabelas 1:1 usam upsert — re-POST para mudar, sem PATCH. `combat_rules` e `economy_rules` são a exceção: sendo singletons, PATCH é a operação natural.
+
+**Enums que decidem comportamento no jogo**, não rótulos:
+- `item_category` (`mineral`, `capture`, `heal`) — o export filtra minério nesta coluna. Era texto livre, e por isso `mining.items` recebia a tabela inteira: o primeiro item de comerciante teria sido exportado como minerável.
+- `item_effect` (`none`, `capture_bonus`, `heal_flat`, `heal_percent`).
+- `npc_role` (`merchant`, `duelist`, `quest`, `flavor`) — decide qual tela o jogo abre ao interagir.
 
 **Dano:** `floor((power * attack / defense) * damageConstant * multElemental * random(varianceMin, varianceMax))`, com piso em `damageMinimum`.
 **Carga do Despertar:** enche com dano recebido (×`chargeTakenMultiplier`) e causado (×`chargeDealtMultiplier`), escalado por `baseCharge / chargeNeutralCharge`. Cheia em `chargeMax`, dura 3 turnos, zera na reversão. Receber enche mais que causar — deliberado, para o Despertar ser virada de jogo e não amplificador de vitória.
@@ -150,6 +158,7 @@ pnpm db:reset             # create + generate + migrate + seed (setup do zero, s
 - Não devolver o objeto criado inteiro em `POST` — só `{code, version}`. O agente já enviou; devolver duplica tokens.
 - Não usar shadcn/ui. Componentes trazem radius e paleta que brigam com a direção visual — mais retrabalho refinar do que HTML nativo + Tailwind.
 - Não instalar Alembic, Prisma, tRPC, GraphQL, MinIO, Redis, Docker Compose. Se propuser algo que puxe uma dessas, questionar antes.
+- **Não criar tabela sem adicioná-la à lista `TABLES` de `packages/db/src/pull.ts`.** Esquecer é silencioso da pior forma: o `db:pull` roda, reporta sucesso, e o dev fica com a tabela vazia. Foi exatamente o que aconteceu com a camada de números inteira — `creature_stats`, `ability_stats`, `capture_rules` e `creature_abilities` nunca estiveram na lista, então toda máquina hidratada por `db:pull` tinha catálogo completo e zero números, e o `game:export` abortava apontando um dado que existe em prod.
 - Não commitar arquivos de `./fontes/` (xlsx/docx). Cada dev traz sua cópia — `.gitignore` cobre.
 - Não commitar `.env`. Só `.env.example` vai para o repo.
 
